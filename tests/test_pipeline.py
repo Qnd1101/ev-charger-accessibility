@@ -206,22 +206,26 @@ class TestSigunguDashboardPath:
         if not (processed / "chargers_clean.parquet").exists():
             pytest.skip("정제 테이블이 아직 없습니다")
 
-        ref = pd.read_csv(ROOT / "data" / "ref" / "zscode_map.csv", dtype=str)
-        chargers = pd.read_parquet(processed / "chargers_clean.parquet", columns=["zscode"])
-        counts = chargers.groupby("zscode").size()
-
-        sgg = ref.assign(
-            charger_count=ref["zscode"].map(counts).fillna(0).astype(int),
-            population=500_000,
-            fast_count=0,
-            M3_fast_ratio=0.1,
-            M5_availability=0.8,
-        )
-        sgg["M2_chargers_per_100k_pop"] = sgg["charger_count"] / (sgg["population"] / 100_000)
-
+        # 실제 시군구 지표가 있으면 그걸로 태운다. 합성본은 시군구 인구 CSV 가 없어
+        # metrics.py 가 시도 단위로 떨어질 때만 쓰는 대역이다 -- 이 경우에만 만들고,
+        # 만든 경우에만 지운다(실제 산출물을 삭제하지 않기 위해).
         sgg_path = processed / "metrics_sgg.parquet"
-        assert not sgg_path.exists(), "실제 시군구 지표가 이미 있다 -- 이 테스트는 합성 전용이다"
-        sgg.to_parquet(sgg_path, index=False)
+        synthesized = not sgg_path.exists()
+
+        if synthesized:
+            ref = pd.read_csv(ROOT / "data" / "ref" / "zscode_map.csv", dtype=str)
+            chargers = pd.read_parquet(processed / "chargers_clean.parquet", columns=["zscode"])
+            counts = chargers.groupby("zscode").size()
+
+            sgg = ref.assign(
+                charger_count=ref["zscode"].map(counts).fillna(0).astype(int),
+                population=500_000,
+                fast_count=0,
+                M3_fast_ratio=0.1,
+                M5_availability=0.8,
+            )
+            sgg["M2_chargers_per_100k_pop"] = sgg["charger_count"] / (sgg["population"] / 100_000)
+            sgg.to_parquet(sgg_path, index=False)
 
         os.environ.setdefault("STREAMLIT_GLOBAL_SHOW_WARNING_ON_DIRECT_EXECUTION", "false")
         try:
@@ -234,4 +238,5 @@ class TestSigunguDashboardPath:
         except SystemExit:
             pass  # st.stop() 은 정상 흐름
         finally:
-            sgg_path.unlink(missing_ok=True)
+            if synthesized:
+                sgg_path.unlink(missing_ok=True)
