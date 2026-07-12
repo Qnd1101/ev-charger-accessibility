@@ -20,7 +20,12 @@ from pathlib import Path
 
 import pandas as pd
 
-from regions import NATIONWIDE_CODE10, SEJONG_CODE10, SEJONG_ZSCODE
+from regions import (
+    INCHEON_POP_MERGE,
+    NATIONWIDE_CODE10,
+    SEJONG_CODE10,
+    SEJONG_ZSCODE,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
@@ -150,6 +155,12 @@ def load_population() -> Population | None:
         sigungu = raw[~is_sido_row].assign(zscode=raw["code10"].str[:5])
 
         pop = pd.concat([sigungu, sejong])[["zscode", "population"]]
+
+        # 인천 개편으로 중구/동구 경계가 사라졌다. clean.canonicalize_incheon 이 충전기를
+        # 중구(28110)로 모으므로 인구 분모도 합친다. 안 합치면 중구 M2 가 과대평가된다.
+        pop["zscode"] = pop["zscode"].replace(INCHEON_POP_MERGE)
+        pop = pop.groupby("zscode", as_index=False)["population"].sum()
+
         return Population(
             pop.astype({"population": int}).reset_index(drop=True), key="zscode", label="시군구"
         )

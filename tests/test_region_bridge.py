@@ -11,6 +11,7 @@ import pytest
 
 import clean
 from conftest import REF_DIR
+from regions import INCHEON_LEGACY_ZSCODE
 
 BRIDGE_PATH = REF_DIR / "zscode_bridge.csv"
 
@@ -84,7 +85,88 @@ class TestCanonicalizeRegion:
         assert (out["zcode"] == "12").sum() == 0
 
 
+class TestCanonicalizeIncheon:
+    """2026년 인천 개편: 중구+동구 -> 제물포구+영종구, 서구 -> 서해구+검단구.
+
+    전남광주와 달리 1:1 이 아니라 재분할이다. 되돌리지 않으면 신규 구 12,363기가
+    M2 에서 NaN 이 되고, 잔여 충전기만 남은 옛 서구가 인구 분모는 그대로 써서
+    '접근성 최악 1위'로 잘못 올라온다.
+    """
+
+    def _df(self) -> pd.DataFrame:
+        return pd.DataFrame({
+            "zcode": ["28", "28", "28", "28", "28", "11"],
+            "zscode": ["28125", "28155", "28275", "28290", "28185", "11110"],
+            "addr": [
+                "인천광역시 제물포구 축항대로 1",
+                "인천광역시 영종구 공항로 271",
+                "인천광역시 서해구 청라대로 1",
+                "인천광역시 검단구 신단로 1",
+                "인천광역시 연수구 컨벤시아대로 1",
+                "서울특별시 종로구 세종대로 1",
+            ],
+        })
+
+    def test_new_districts_become_legacy(self) -> None:
+        out = clean.canonicalize_incheon(self._df())
+        assert list(out["zscode"]) == [
+            "28110",  # 제물포구 -> 중구
+            "28110",  # 영종구   -> 중구
+            "28260",  # 서해구   -> 서구
+            "28260",  # 검단구   -> 서구
+            "28185",  # 연수구는 개편 대상이 아니다
+            "11110",
+        ]
+
+    def test_zcode_stays_consistent_with_zscode(self) -> None:
+        out = clean.canonicalize_incheon(self._df())
+        assert (out["zcode"] == out["zscode"].str[:2]).all()
+
+    def test_no_new_district_code_survives(self) -> None:
+        out = clean.canonicalize_incheon(self._df())
+        assert not out["zscode"].isin(INCHEON_LEGACY_ZSCODE).any()
+
+    def test_new_codes_are_absent_from_reference_map(self) -> None:
+        """되돌리는 이유 자체를 고정한다. 참조 맵에 신규 코드가 생기면 이 브리지는 불필요해진다."""
+        ref = pd.read_csv(REF_DIR / "zscode_map.csv", dtype=str)
+        assert not set(INCHEON_LEGACY_ZSCODE) & set(ref["zscode"])
+
+
+class TestIncheonPopulationMerge:
+    """제물포구가 옛 동구를 흡수했으므로 인구 분모도 중구+동구여야 한다."""
+
+    def test_dong_gu_population_folded_into_jung_gu(self) -> None:
+        import metrics
+
+        if not metrics.JUMIN_SGG_PATH.exists():
+            pytest.skip("시군구 인구 파일이 아직 없습니다")
+
+        raw = metrics._read_jumin(metrics.JUMIN_SGG_PATH)
+        raw["zscode"] = raw["code10"].str[:5]
+        jung = int(raw.loc[raw["zscode"] == "28110", "population"].iloc[0])
+        dong = int(raw.loc[raw["zscode"] == "28140", "population"].iloc[0])
+
+        pop = metrics.load_population().table
+        merged = pop.loc[pop["zscode"] == "28110", "population"]
+
+        assert len(merged) == 1, "중구가 중복 행이면 조인이 이중집계된다"
+        assert int(merged.iloc[0]) == jung + dong
+        assert "28140" not in set(pop["zscode"]), "동구가 남아 있으면 인구가 이중 계상된다"
+
+
 class TestRealSnapshotIsCanonical:
+    def test_cleaned_data_has_no_incheon_new_codes(self) -> None:
+        """정제 산출물에 신규 구 코드가 남아 있으면 M2 에서 12,363기가 증발한다."""
+        from conftest import ROOT
+
+        path = ROOT / "data" / "processed" / "chargers_clean.parquet"
+        if not path.exists():
+            pytest.skip("정제 테이블이 아직 없습니다")
+
+        df = pd.read_parquet(path, columns=["zscode"])
+        leaked = sorted(set(df["zscode"].dropna()) & set(INCHEON_LEGACY_ZSCODE))
+        assert not leaked, f"되돌려지지 않은 인천 신규 코드: {leaked}"
+
     def test_cleaned_data_has_no_merged_zcode(self) -> None:
         """정제 산출물에 통합 코드가 남아 있으면 시도 조인이 깨진다."""
         from conftest import ROOT

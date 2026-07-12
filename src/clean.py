@@ -13,7 +13,14 @@ from pathlib import Path
 
 import pandas as pd
 
-from regions import LAT_MAX, LAT_MIN, LNG_MAX, LNG_MIN, MERGED_ZCODE
+from regions import (
+    INCHEON_LEGACY_ZSCODE,
+    LAT_MAX,
+    LAT_MIN,
+    LNG_MAX,
+    LNG_MIN,
+    MERGED_ZCODE,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
@@ -122,6 +129,27 @@ def canonicalize_region(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def canonicalize_incheon(df: pd.DataFrame) -> pd.DataFrame:
+    """2026년 개편된 인천 신규 구 코드를 개편 전 코드로 되돌린다.
+
+    전남광주(canonicalize_region)와 같은 이유다. 참조 데이터가 아직 개편 전 체계라
+    신규 코드로는 M1/M2 조인이 안 된다. 다만 전남광주와 달리 1:1 대응이 아니라
+    재분할이라 이름으로 되돌릴 수 없어, regions.py 의 명시적 표를 쓴다.
+
+    중구/동구는 경계 자체가 사라졌으므로 둘을 중구 하나로 합친다. 인구 분모도
+    같이 합쳐야 한다 -- metrics.load_population 의 INCHEON_POP_MERGE 참조.
+    """
+    target = df["zscode"].isin(INCHEON_LEGACY_ZSCODE)
+    if not target.any():
+        return df
+
+    df = df.copy()
+    df.loc[target, "zscode"] = df.loc[target, "zscode"].map(INCHEON_LEGACY_ZSCODE)
+    df.loc[target, "zcode"] = df.loc[target, "zscode"].str[:2]
+    print(f"인천 개편 정규화: 신규 구 {int(target.sum()):,}행 -> 중구(28110)/서구(28260)")
+    return df
+
+
 def backfill_zscode(df: pd.DataFrame) -> pd.DataFrame:
     """zscode 는 옵션 항목이라 결측될 수 있다. 주소 앞부분으로 보정한다."""
     ref = pd.read_csv(REF_DIR / "zscode_map.csv", dtype=str)
@@ -152,6 +180,7 @@ def clean(snapshot: Path) -> Path:
     df = add_coord_valid(df)
     df = add_is_fast(df)
     df = canonicalize_region(df)
+    df = canonicalize_incheon(df)
     df = backfill_zscode(df)
 
     valid_ratio = df["coord_valid"].mean()
