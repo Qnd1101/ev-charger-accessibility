@@ -12,6 +12,7 @@ import pandas as pd
 import pytest
 
 from conftest import ROOT
+from metric_specs import COUNT_FIELDS, REGION_FIELDS
 
 DATA_DIR = ROOT / "prototype" / "public" / "data"
 
@@ -19,7 +20,7 @@ DATA_DIR = ROOT / "prototype" / "public" / "data"
 SPEED_ALL, SPEED_FAST, SPEED_SLOW = 0, 1, 2
 H24_ALL, H24_ONLY = 0, 1
 
-REGION_COLS = ["zscode", "op", "speed", "h24", "chargers", "stations", "live", "available"]
+REGION_COLS = ["zscode", "op", "speed", "h24", "chargers", "stations", "fast", "live", "available"]
 GRID_COLS = ["lat_e3", "lng_e3", "zcode", "op", "fast", "h24", "chargers"]
 
 
@@ -69,6 +70,54 @@ class TestSchema:
         rows = _load("grid_cube.json")
         assert rows and all(len(r) == len(GRID_COLS) for r in rows)
 
+    def test_metric_specs_are_shipped(self) -> None:
+        """화면은 공식을 재구현하지 않고 이 정의를 읽어 나눈다(AGENTS.md 데이터 경계)."""
+        specs = {m["id"]: m for m in _load("metrics.json")}
+        assert set(specs) == {"M1", "M2", "M3", "M4", "M5"}
+
+        for m in specs.values():
+            # 평가기가 알 수 없는 항을 만나면 화면이 조용히 '—' 를 띄운다. 여기서 막는다.
+            for term in (m["numerator"], m["denominator"]):
+                assert term["field"] in set(COUNT_FIELDS) | set(REGION_FIELDS)
+                assert term["scale"] > 0
+            # 취약 방향이 없으면 색·정렬·3D 높이 방향이 화면마다 갈린다(DESIGN.md 48행).
+            assert m["polarity"] in {"low_is_vulnerable", "high_is_vulnerable", "neutral"}
+            assert m["resolution"] in {"sido", "sigungu"}
+            assert m["definition"]
+
+    def test_cube_carries_every_count_a_spec_needs(self, region_cube: pd.DataFrame) -> None:
+        """큐브에 없는 카운트를 지표가 요구하면 화면이 계산할 수 없다."""
+        cube_fields = {
+            "charger_count": "chargers",
+            "station_count": "stations",
+            "fast_count": "fast",
+            "live_count": "live",
+            "available_count": "available",
+        }
+        for m in _load("metrics.json"):
+            for term in (m["numerator"], m["denominator"]):
+                f = term["field"]
+                if f in REGION_FIELDS:
+                    continue  # 지역 속성은 regions.json 에서 온다
+                assert cube_fields[f] in region_cube.columns
+
+    def test_region_attrs_needed_by_specs_are_shipped(self) -> None:
+        """M1 은 ev_count, M2 는 population 이 없으면 계산되지 않는다."""
+        regions_file = _load("regions.json")
+        needed = {
+            t["field"]
+            for m in _load("metrics.json")
+            for t in (m["numerator"], m["denominator"])
+            if t["field"] in REGION_FIELDS
+        }
+        if "ev_count" in needed:
+            assert all("ev_count" in s for s in regions_file["sidos"])
+        if "population" in needed:
+            # 해상도에 맞는 쪽에 실린다. 한쪽이라도 인구가 있어야 M2 랭킹이 뜬다.
+            has_sgg = any(r["population"] for r in regions_file["regions"])
+            has_sido = any(s["population"] for s in regions_file["sidos"])
+            assert has_sgg or has_sido
+
     def test_meta_keys(self) -> None:
         meta = _load("meta.json")
         required = {
@@ -114,6 +163,16 @@ class TestRegionCubeMatchesPipeline:
         by_speed = region_cube.query("h24 == @H24_ALL").groupby("speed")["chargers"].sum()
         ratio = by_speed[SPEED_FAST] / by_speed[SPEED_ALL]
         assert ratio == pytest.approx(placed["is_fast"].mean(), abs=1e-9)
+
+    def test_fast_count_is_self_consistent_in_every_slice(self, region_cube: pd.DataFrame) -> None:
+        """급속 슬라이스 안에서는 fast == chargers, 완속 슬라이스에서는 fast == 0.
+
+        이게 성립해야 화면이 "속도 필터가 걸리면 급속 비율은 정의상 100%" 같은 분기를
+        TypeScript 에 두지 않아도 된다 -- 평가기가 그냥 나누면 1 과 0 이 나온다.
+        """
+        fast_slice = region_cube.query("speed == @SPEED_FAST")
+        assert (fast_slice["fast"] == fast_slice["chargers"]).all()
+        assert (region_cube.query("speed == @SPEED_SLOW")["fast"] == 0).all()
 
     def test_h24_slice_is_subset(self, region_cube: pd.DataFrame, placed: pd.DataFrame) -> None:
         only = region_cube.query("speed == @SPEED_ALL and h24 == @H24_ONLY")["chargers"].sum()

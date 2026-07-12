@@ -34,6 +34,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from display import GRID_DEG  # noqa: E402
+from metric_specs import to_json as metric_specs_json  # noqa: E402
 from metrics import (  # noqa: E402
     CLEAN_PATH,
     JUMIN_SGG_PATH,
@@ -65,7 +66,13 @@ def _slices(df: pd.DataFrame) -> list[tuple[int, int, pd.DataFrame]]:
 
 
 def build_region_cube(df: pd.DataFrame, op_idx: dict[str, int]) -> list[list[int]]:
-    """[zscode, opIdx, speed, h24, 충전기, 충전소, 응답, 사용가능] 행."""
+    """[zscode, opIdx, speed, h24, 충전기, 충전소, 급속, 응답, 사용가능] 행.
+
+    다섯 카운트를 **모든 슬라이스에** 싣는다. 그래야 화면의 지표 평가기가 큐브만 더해서
+    M3~M5 를 낼 수 있고, "속도 필터가 걸리면 급속 비율은 정의상 100%" 같은 특수 분기를
+    TypeScript 에 둘 필요가 없다 -- 급속 슬라이스 안에서는 fast == chargers 라서 저절로 1 이
+    나온다. 공식은 `metric_specs.METRICS` 한 곳에만 있어야 한다(AGENTS.md).
+    """
     rows: list[list[int]] = []
     for speed, h24, sl in _slices(df):
         live = sl[sl["stat"].isin([STAT_AVAILABLE, STAT_IN_USE])]
@@ -73,6 +80,7 @@ def build_region_cube(df: pd.DataFrame, op_idx: dict[str, int]) -> list[list[int
             chargers=("statId", "size"),
             stations=("statId", "nunique"),
         )
+        agg["fast"] = sl[sl["is_fast"]].groupby(["zscode", "busiNm"]).size()
         agg["live"] = live.groupby(["zscode", "busiNm"]).size()
         agg["available"] = (
             live[live["stat"] == STAT_AVAILABLE].groupby(["zscode", "busiNm"]).size()
@@ -87,6 +95,7 @@ def build_region_cube(df: pd.DataFrame, op_idx: dict[str, int]) -> list[list[int
                 h24,
                 r.chargers,
                 r.stations,
+                r.fast,
                 r.live,
                 r.available,
             ]
@@ -207,6 +216,8 @@ def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     payload = {
         "meta.json": meta,
+        # 지표 공식의 정의. 화면은 이 표를 읽어 나누기만 한다 -- 공식을 재구현하지 않는다.
+        "metrics.json": metric_specs_json(),
         "operators.json": op_names,
         "regions.json": {"regions": regions, "sidos": sidos},
         "region_cube.json": build_region_cube(df, op_idx),

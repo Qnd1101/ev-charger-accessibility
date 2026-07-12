@@ -1,8 +1,8 @@
 /**
- * Split Command 프로토타입 — 한 화면.
+ * Split Command — 한 화면.
  *
- * DESIGN.md 의 프로토타입 범위: 헤더, 기준일, 필터 4개, KPI 4개, 2D 격자 지도, 취약 지역 랭킹.
- * 폐기 가능한 코드다. 구조와 시각 언어를 1440px·768px 에서 승인받는 것이 목적이다.
+ * **지표 공식은 여기에 없다.** `metrics.json`(Python 이 내보낸 정의)을 읽어 `evaluate` 로
+ * 계산한다. 값·단위·소수점·툴팁·취약 방향이 전부 정의에서 나온다(AGENTS.md 데이터 경계).
  */
 import { useEffect, useMemo, useState } from "react";
 
@@ -14,16 +14,17 @@ import {
   SPEED,
   aggregateGrid,
   aggregateRegions,
-  computeKpis,
   loadDataset,
+  totalTerms,
   type Dataset,
   type Filters,
   type SpeedFilter,
+  type Terms,
 } from "./data";
+import { byId, evaluate, format } from "./metrics";
 
 const RANK_SIZE = 12;
 const num = (n: number) => n.toLocaleString("ko-KR");
-const pct = (r: number | null) => (r === null ? "—" : `${(r * 100).toFixed(1)}%`);
 
 /**
  * 랭킹 축의 시도 축약. 앞 두 글자만 자르면 전라남도/전라북도가 똑같이 '전라'가 되어
@@ -52,31 +53,49 @@ export default function App() {
 
   const totals = useMemo(() => (data ? aggregateRegions(data, f) : null), [data, f]);
   const cells = useMemo(() => (data ? aggregateGrid(data, f) : []), [data, f]);
-  const kpis = useMemo(
-    () => (data && totals ? computeKpis(data, f, totals) : null),
+  const scopeTerms = useMemo<Terms | null>(
+    () => (data && totals ? totalTerms(data, f, totals) : null),
     [data, f, totals],
   );
 
   /**
-   * M2(인구 10만명당 충전기) 오름차순 = 접근성 취약 랭킹.
+   * 접근성 취약 랭킹. 지표(M2)의 정의·단위·정렬 방향은 `metrics.json` 에서 온다.
+   *
+   * 인구가 시군구 해상도면 시군구를, 시도로 떨어졌으면 시도를 세운다. 예전에는 시군구만
+   * 세워서, 인구가 시도로 떨어지면 배지는 "시도 · M2"라고 말하는데 표는 **조용히 비었다**.
+   *
    * 운영기관을 고르면 0기 지역이 생기는데, 이건 국가 인프라 '부족'이 아니라 그 기관의
    * '미진출'이다. 결과에서 지우지 않고 다른 상태로 표시한다(CONTEXT.md 용어 구분).
    */
   const ranking = useMemo<RankRow[]>(() => {
     if (!data || !totals) return [];
-    const scoped = f.zcodes.length
-      ? data.regions.filter((r) => f.zcodes.includes(r.zcode))
-      : data.regions;
+    const m2 = byId(data.metrics, "M2");
+    const inScope = (zcode: number) => !f.zcodes.length || f.zcodes.includes(zcode);
+    const absent = (t: Terms) => t.charger_count === 0 && f.operators.length > 0;
 
-    return scoped
-      .filter((r) => r.population)
+    const sggRows = data.regions
+      .filter((r) => inScope(r.zcode) && r.population)
       .map((r) => {
-        const chargers = totals.get(r.zscode)?.chargers ?? 0;
-        return {
-          name: `${shortSido(r.sido)} ${r.sigungu}`,
-          value: chargers / (r.population! / 100_000),
-          absent: chargers === 0 && f.operators.length > 0,
-        };
+        const t: Terms = { ...(totals.get(r.zscode) ?? {}), population: r.population! };
+        return { name: `${shortSido(r.sido)} ${r.sigungu}`, value: evaluate(m2, t), absent: absent(t) };
+      });
+    if (sggRows.length) return sggRows.sort((a, b) => (a.value ?? 0) - (b.value ?? 0)).slice(0, RANK_SIZE);
+
+    // 시군구 인구가 없다 -> 시도로 강등한다. 빈 표를 내놓지 않는다.
+    const byZcode = new Map<number, Terms>();
+    const zOf = new Map(data.regions.map((r) => [r.zscode, r.zcode]));
+    for (const [zscode, t] of totals) {
+      const z = zOf.get(zscode);
+      if (z === undefined) continue;
+      const cur = byZcode.get(z) ?? { charger_count: 0 };
+      cur.charger_count! += t.charger_count ?? 0;
+      byZcode.set(z, cur);
+    }
+    return data.sidos
+      .filter((sd) => inScope(sd.zcode) && sd.population)
+      .map((sd) => {
+        const t: Terms = { ...(byZcode.get(sd.zcode) ?? { charger_count: 0 }), population: sd.population! };
+        return { name: sd.name, value: evaluate(m2, t), absent: absent(t) };
       })
       .sort((a, b) => (a.value ?? 0) - (b.value ?? 0))
       .slice(0, RANK_SIZE);
@@ -103,7 +122,7 @@ export default function App() {
     );
   }
 
-  if (!data || !kpis || !totals) {
+  if (!data || !scopeTerms || !totals) {
     return (
       <div className={s.shell}>
         <aside className={s.rail}>
@@ -125,6 +144,10 @@ export default function App() {
 
   const { meta, operators, sidos } = data;
   const opFiltered = f.operators.length > 0;
+  const chargers = scopeTerms.charger_count ?? 0;
+  const stations = scopeTerms.station_count ?? 0;
+  const m2 = byId(data.metrics, "M2");
+  const ratioKpis = [byId(data.metrics, "M3"), byId(data.metrics, "M5")];
   const visibleOps = operators
     .map((name, i) => ({ name, i }))
     .filter((o) => (opQuery ? o.name.includes(opQuery) : true))
@@ -253,7 +276,7 @@ export default function App() {
 
         <div className={s.railResult}>
           <div className={s.railResultValue} aria-live="polite">
-            {num(kpis.chargers)}
+            {num(chargers)}
           </div>
           <div className={s.railResultLabel}>필터 후 충전기</div>
           <button
@@ -306,7 +329,7 @@ export default function App() {
           )}
         </div>
 
-        {kpis.chargers === 0 ? (
+        {chargers === 0 ? (
           <div className={s.empty}>
             <h2 className={s.panelTitle}>조건에 맞는 충전기가 0기입니다</h2>
             <p className={s.kpiNote}>
@@ -322,7 +345,7 @@ export default function App() {
               <div className={s.kpi}>
                 <div className={s.kpiLabel}>충전소</div>
                 <div className={s.kpiValue}>
-                  {num(kpis.stations)}
+                  {num(stations)}
                   <span className={s.kpiUnit}>개소</span>
                 </div>
                 <p className={s.kpiNote}>
@@ -334,24 +357,23 @@ export default function App() {
               <div className={s.kpi}>
                 <div className={s.kpiLabel}>충전기</div>
                 <div className={s.kpiValue}>
-                  {num(kpis.chargers)}
+                  {num(chargers)}
                   <span className={s.kpiUnit}>기</span>
                 </div>
                 <p className={s.kpiNote}>커넥터 단위. 전국 {num(meta.total_chargers)}기 중.</p>
               </div>
-              <div className={s.kpi}>
-                <div className={s.kpiLabel}>급속 비율 (M3)</div>
-                <div className={s.kpiValue}>{pct(kpis.fastRatio)}</div>
-                <p className={s.kpiNote}>50kW 이상 또는 급속 커넥터 타입.</p>
-              </div>
-              <div className={s.kpi}>
-                <div className={s.kpiLabel}>유휴율 (M5)</div>
-                <div className={s.kpiValue}>{pct(kpis.idleRatio)}</div>
-                <p className={s.kpiNote}>
-                  분모는 <b>충전대기 + 충전중</b> 뿐입니다. 통신이상·점검중은 제외되므로
-                  &lsquo;가용률&rsquo;이 아닙니다.
-                </p>
-              </div>
+              {ratioKpis.map((spec) => (
+                <div key={spec.id} className={s.kpi}>
+                  <div className={s.kpiLabel}>
+                    {spec.label} ({spec.id})
+                  </div>
+                  <div className={s.kpiValue} title={spec.definition}>
+                    {format(spec, evaluate(spec, scopeTerms))}
+                    <span className={s.kpiUnit}>{spec.unit}</span>
+                  </div>
+                  <p className={s.kpiNote}>{spec.caveat ?? spec.definition}</p>
+                </div>
+              ))}
             </section>
 
             <div className={s.split}>
@@ -395,19 +417,20 @@ export default function App() {
                   <span className={s.badge}>{meta.population_label ?? "시군구"} · M2</span>
                 </div>
                 <div className={s.chart}>
-                  <RankingChart rows={ranking} unit="기/인구10만" />
+                  <RankingChart rows={ranking} unit={m2.unit} />
                 </div>
 
                 <div className={s.tableWrap}>
                   <table>
                     <caption>
-                      인구 10만명당 충전기 수(M2). <b>낮을수록 접근성이 취약</b>합니다. 오름차순 상위{" "}
-                      {RANK_SIZE}곳.
+                      {m2.definition} <b>낮을수록 접근성이 취약</b>합니다. 오름차순 상위 {RANK_SIZE}곳.
                     </caption>
                     <thead>
                       <tr>
                         <th scope="col">지역</th>
-                        <th scope="col">M2 (기/인구10만)</th>
+                        <th scope="col">
+                          {m2.id} ({m2.unit})
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -417,11 +440,7 @@ export default function App() {
                             {r.name}
                           </th>
                           <td className={s.num}>
-                            {r.absent ? (
-                              <span className={s.absent}>미진출</span>
-                            ) : (
-                              (r.value ?? 0).toFixed(1)
-                            )}
+                            {r.absent ? <span className={s.absent}>미진출</span> : format(m2, r.value)}
                           </td>
                         </tr>
                       ))}

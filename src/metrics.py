@@ -1,10 +1,9 @@
-"""지표 산출: M1~M5.
+"""지표 산출 파이프라인.
 
-M1 (시도)   EV 1,000대당 충전기 수      -- 낮을수록 부족
-M2 (시군구) 인구 10만명당 충전기 수     -- 낮을수록 접근성 취약
-M3          급속충전기 비율
-M4          충전소당 충전기 수
-M5          가용률 (스냅샷 시점)
+**공식 자체는 여기에 없다.** `metric_specs.METRICS` 가 유일한 원본이고, 이 모듈은 원자
+카운트(충전기·충전소·급속·응답·사용가능)를 집계한 뒤 `apply_metrics` 로 파생 열을 붙인다.
+같은 표를 `scripts/build_web_data.py` 가 JSON 으로 내보내 화면이 읽는다 -- 그래서 Python
+과 UI 에 공식이 두 벌 존재할 수 없다.
 
 M2 는 주민등록 시군구 CSV 가 있을 때만 산출된다. 없으면 경고 후 skip -- 나머지는 정상 산출한다.
 
@@ -20,6 +19,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from metric_specs import apply_metrics
 from regions import (
     INCHEON_POP_MERGE,
     NATIONWIDE_CODE10,
@@ -75,12 +75,7 @@ def aggregate_region(df: pd.DataFrame, by: str) -> pd.DataFrame:
     int_cols = ["charger_count", "station_count", "fast_count", "live_count", "available_count"]
     out[int_cols] = out[int_cols].astype(int)
 
-    out["M3_fast_ratio"] = out["fast_count"] / out["charger_count"]
-    out["M4_chargers_per_station"] = out["charger_count"] / out["station_count"]
-    out["M5_availability"] = (out["available_count"] / out["live_count"]).where(
-        out["live_count"] > 0
-    )
-    return out.reset_index()
+    return apply_metrics(out).reset_index()
 
 
 def load_kepco_ev() -> pd.DataFrame:
@@ -203,8 +198,7 @@ def _join_population(out: pd.DataFrame, population: Population) -> pd.DataFrame:
             f"인구를 못 찾은 충전기가 {ratio:.2%} 입니다. 미매칭 {key}: {unmatched[key].tolist()[:20]}"
         )
 
-    out["M2_chargers_per_100k_pop"] = out["charger_count"] / (out["population"] / 100_000)
-    return out
+    return apply_metrics(out)
 
 
 def build_sido(chargers: pd.DataFrame, population: Population | None = None) -> pd.DataFrame:
@@ -216,7 +210,7 @@ def build_sido(chargers: pd.DataFrame, population: Population | None = None) -> 
     if missing:
         raise RuntimeError(f"시도 조인 실패: ev_count 결측 {missing}건")
 
-    out["M1_chargers_per_1k_ev"] = out["charger_count"] / (out["ev_count"] / 1000)
+    out = apply_metrics(out)
 
     # 시군구 인구 파일이 없을 때는 시도 단위로라도 접근성 지표를 낸다.
     if population is not None:
