@@ -1,0 +1,7 @@
+pandas>=2.2
+pyarrow>=16
+requests>=2.32
+streamlit>=1.40
+pydeck>=0.9
+python-dotenv>=1.0
+pytest>=8.0

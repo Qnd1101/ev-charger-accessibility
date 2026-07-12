@@ -1,0 +1,35 @@
+.env*
+!.env.example
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.omc/
+.omx/
+.scratch/
+.codex/
+.agents/
+node_modules/
+dist/
+
+# 인증정보와 로컬 실행 산출물
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*
+secrets*
+*.log
+.coverage
+coverage.xml
+htmlcov/
+playwright-report/
+test-results/
+
+# 공식 배포처에서 다시 받을 수 있는 제3자 원문 바이너리
+docs/*.docx
+
+# 원본/파생 데이터는 커밋하지 않는다 (수집·지표 스크립트로 재생성)
+data/raw/
+data/processed/
