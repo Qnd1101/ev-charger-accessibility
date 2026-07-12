@@ -33,3 +33,9 @@ docs/*.docx
 # 원본/파생 데이터는 커밋하지 않는다 (수집·지표 스크립트로 재생성)
 data/raw/
 data/processed/
+
+# 화면용 희소 집계도 파생 데이터다 (scripts/build_web_data.py 로 재생성)
+prototype/public/data/
+
+# TypeScript 증분 빌드 캐시
+*.tsbuildinfo

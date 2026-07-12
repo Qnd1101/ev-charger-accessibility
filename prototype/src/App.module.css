@@ -1,0 +1,538 @@
+/* Split Command: 어두운 고정 필터 레일 + 밝은 분석 캔버스 */
+.shell {
+  display: grid;
+  grid-template-columns: var(--rail-w) 1fr;
+  min-height: 100vh;
+}
+
+.rail {
+  background: var(--navy);
+  color: var(--rail-ink);
+  padding: var(--s5) var(--s4);
+  border-right: 1px solid var(--line-rail);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.railTitle {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  color: var(--lime);
+  margin: 0 0 var(--s1);
+}
+
+.railSub {
+  font-size: 12px;
+  color: var(--rail-ink-2);
+  margin: 0 0 var(--s5);
+  line-height: 1.5;
+}
+
+.field {
+  margin-bottom: var(--s5);
+}
+
+.field > legend,
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rail-ink-2);
+  margin-bottom: var(--s2);
+  display: block;
+  padding: 0;
+}
+
+.field {
+  border: 0;
+  padding: 0;
+}
+
+.segment {
+  display: flex;
+  gap: var(--s1);
+  background: var(--navy-2);
+  border: 1px solid var(--line-rail);
+  border-radius: var(--r1);
+  padding: var(--s1);
+}
+
+.segment label {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  padding: 6px 0;
+  border-radius: 7px;
+  cursor: pointer;
+  color: var(--rail-ink-2);
+}
+
+.segment input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.segment input:checked + span {
+  color: var(--navy);
+}
+
+.segment label:has(input:checked) {
+  background: var(--lime);
+  color: var(--navy);
+  font-weight: 600;
+}
+
+.segment label:has(input:focus-visible) {
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
+}
+
+.search,
+.select {
+  width: 100%;
+  background: var(--navy-2);
+  border: 1px solid var(--line-rail);
+  border-radius: var(--r1);
+  color: var(--rail-ink);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.checkList {
+  max-height: 168px;
+  overflow-y: auto;
+  border: 1px solid var(--line-rail);
+  border-radius: var(--r1);
+  background: var(--navy-2);
+  padding: var(--s2);
+  margin-top: var(--s2);
+}
+
+.checkList label {
+  display: flex;
+  gap: var(--s2);
+  align-items: center;
+  font-size: 13px;
+  padding: 4px 2px;
+  cursor: pointer;
+  line-height: 1.3;
+}
+
+.count {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--rail-ink-2);
+}
+
+.quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  margin-top: var(--s2);
+}
+
+.quickBtn,
+.reset {
+  background: transparent;
+  border: 1px solid var(--line-rail);
+  color: var(--rail-ink-2);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.quickBtn:hover,
+.reset:hover {
+  border-color: var(--lime);
+  color: var(--lime);
+}
+
+.railResult {
+  border-top: 1px solid var(--line-rail);
+  padding-top: var(--s4);
+  margin-top: var(--s5);
+}
+
+.railResultValue {
+  font-family: var(--mono);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--lime);
+}
+
+.railResultLabel {
+  font-size: 12px;
+  color: var(--rail-ink-2);
+}
+
+/* ---------------------------------------------------------------- 분석 캔버스 */
+.canvas {
+  padding: var(--s6) var(--s6) var(--s7);
+  max-width: var(--max-w);
+  width: 100%;
+}
+
+.kicker {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  color: var(--ink-2);
+  text-transform: uppercase;
+}
+
+.h1 {
+  font-family: var(--mono);
+  font-size: 30px;
+  margin: var(--s2) 0 var(--s3);
+  letter-spacing: -0.01em;
+}
+
+.basis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  background: var(--ivory-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r1);
+  padding: var(--s3) var(--s4);
+}
+
+.basis b {
+  color: var(--ink);
+  font-family: var(--mono);
+}
+
+.boundary {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  border-left: 2px solid var(--cyan);
+  padding-left: var(--s2);
+}
+
+.scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  align-items: center;
+  margin: var(--s4) 0 var(--s5);
+}
+
+.scopeLabel {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--ink-2);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--ivory-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 6px 4px 12px;
+  font-size: 12.5px;
+}
+
+.chipX {
+  border: 0;
+  background: var(--ivory);
+  border-radius: 999px;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.chipX:hover {
+  background: var(--red);
+  color: #fff;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s4);
+}
+
+.kpi {
+  background: var(--ivory-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r2);
+  padding: var(--s4) var(--s4) var(--s3);
+}
+
+.kpiLabel {
+  font-size: 12px;
+  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kpiValue {
+  font-family: var(--mono);
+  font-size: 30px;
+  font-weight: 700;
+  margin: var(--s2) 0 2px;
+  letter-spacing: -0.02em;
+}
+
+.kpiUnit {
+  font-size: 14px;
+  color: var(--ink-2);
+  font-weight: 400;
+  margin-left: 3px;
+}
+
+.kpiNote {
+  font-size: 11.5px;
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: var(--s4);
+  margin-top: var(--s4);
+}
+
+.panel {
+  background: var(--ivory-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r2);
+  padding: var(--s4);
+  min-width: 0;
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+  flex-wrap: wrap;
+}
+
+.panelTitle {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.badge {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--ivory);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: var(--ink-2);
+}
+
+.toggle {
+  margin-left: auto;
+  display: flex;
+  gap: var(--s1);
+}
+
+.map {
+  height: 420px;
+  border-radius: var(--r1);
+  overflow: hidden;
+  background: var(--navy-2);
+}
+
+.caveat {
+  margin-top: var(--s3);
+  font-size: 11.5px;
+  color: var(--ink-2);
+  line-height: 1.5;
+  border-left: 2px solid var(--amber);
+  padding-left: var(--s2);
+}
+
+.chart {
+  height: 300px;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  margin-top: var(--s3);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+caption {
+  text-align: left;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  padding-bottom: var(--s2);
+}
+
+th,
+td {
+  text-align: right;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+th:first-child,
+td:first-child {
+  text-align: left;
+}
+
+thead th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+}
+
+td.num {
+  font-family: var(--mono);
+}
+
+.absent {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+.empty,
+.error {
+  background: var(--ivory-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--amber);
+  border-radius: var(--r1);
+  padding: var(--s5);
+  margin-top: var(--s4);
+}
+
+.error {
+  border-left-color: var(--red);
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--ivory) 25%, #eceee8 50%, var(--ivory) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: var(--r1);
+  height: 100%;
+  min-height: 80px;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* 태블릿: 필터를 상단 '가로' 영역으로, KPI 2열.
+   세로로 쌓으면 레일만 900px 가 넘어 분석 캔버스가 첫 화면 밖으로 밀린다. */
+@media (max-width: 1180px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .rail {
+    position: static;
+    height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--line-rail);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: var(--s3) var(--s4);
+    align-items: start;
+  }
+
+  .railTitle,
+  .railSub {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+  }
+
+  .field {
+    margin-bottom: 0;
+  }
+
+  .checkList {
+    max-height: 116px;
+  }
+
+  .railResult {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    gap: var(--s3);
+    margin-top: var(--s2);
+  }
+
+  .railResult button {
+    margin-top: 0 !important;
+    margin-left: auto;
+  }
+
+  .canvas {
+    padding: var(--s5) var(--s4) var(--s6);
+  }
+
+  .kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .split {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 모바일: KPI 와 순위를 1열로 쌓아 읽게 한다 */
+@media (max-width: 560px) {
+  .kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .h1 {
+    font-size: 23px;
+  }
+
+  .map {
+    height: 300px;
+  }
+
+  .boundary {
+    margin-left: 0;
+  }
+}
