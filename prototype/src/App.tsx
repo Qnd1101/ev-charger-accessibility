@@ -211,6 +211,9 @@ export default function App() {
   const stations = scopeTerms.station_count ?? 0;
   const m2 = byId(data.metrics, "M2");
   const ratioKpis = [byId(data.metrics, "M3"), byId(data.metrics, "M5")];
+  // 시군구·시도 어느 해상도로도 인구가 없으면 M2 를 계산할 수 없다(Streamlit tab_access 대응).
+  const noPopulationData =
+    !data.regions.some((r) => r.population != null) && !data.sidos.some((s) => s.population != null);
   const visibleOps = operators
     .map((name, i) => ({ name, i }))
     .filter((o) => (opQuery ? o.name.includes(opQuery) : true))
@@ -556,6 +559,9 @@ export default function App() {
                     <> 지역에 배치할 수 없는 충전기 {num(unplacedChargers)}기도 지역·지도 집계에서 제외됩니다.</>
                   )}
                 </p>
+                {cells.length === 0 && (
+                  <p className={s.kpiNote}>필터 조건에 맞는 충전기 중 지도에 표시할 수 있는 좌표가 없습니다.</p>
+                )}
               </section>
 
               <section className={s.panel} aria-label="취약 지역 순위">
@@ -565,43 +571,60 @@ export default function App() {
                   </h2>
                   <span className={s.badge}>{meta.population_label ?? "시군구"} · M2</span>
                 </div>
-                <div className={s.chart}>
-                  <RankingChart rows={ranking} unit={m2.unit} />
-                </div>
+                {noPopulationData ? (
+                  <div className={s.empty} role="status">
+                    <h3 className={s.emptyGuideTitle}>인구 데이터가 없어 이 지표를 계산할 수 없습니다.</h3>
+                    <p className={s.kpiNote}>
+                      jumin.mois.go.kr → 주민등록 인구 및 세대현황 → 월간에서 CSV 를 받아{" "}
+                      <code>data/raw/</code>에 넣고 <code>python src/metrics.py</code>와{" "}
+                      <code>python scripts/build_web_data.py</code>를 다시 실행하세요.
+                    </p>
+                    <ul className={s.emptyReasons}>
+                      <li>행정구역을 시군구까지 펼치면 → <code>jumin_sgg_202606.csv</code>(고해상도)</li>
+                      <li>시도만 접어서 받으면 → <code>jumin_sido_202606.csv</code>(저해상도)</li>
+                    </ul>
+                  </div>
+                ) : (
+                  <>
+                    <div className={s.chart}>
+                      <RankingChart rows={ranking} unit={m2.unit} />
+                    </div>
 
-                <div className={s.tableWrap}>
-                  <table>
-                    <caption>
-                      {m2.definition} <b>낮을수록 접근성이 취약</b>합니다. 오름차순 상위 {RANK_SIZE}곳.
-                    </caption>
-                    <thead>
-                      <tr>
-                        <th scope="col">지역</th>
-                        <th scope="col">
-                          {m2.id} ({m2.unit})
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ranking.map((r) => (
-                        <tr key={r.name}>
-                          <th scope="row" style={{ fontWeight: 400 }}>
-                            {r.name}
-                          </th>
-                          <td className={s.num}>
-                            {r.absent ? <span className={s.absent}>미진출</span> : format(m2, r.value)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    <div className={s.tableWrap}>
+                      <table>
+                        <caption>
+                          {m2.definition} <b>낮을수록 접근성이 취약</b>합니다. 오름차순 상위 {RANK_SIZE}곳.
+                        </caption>
+                        <thead>
+                          <tr>
+                            <th scope="col">지역</th>
+                            <th scope="col">
+                              {m2.id} ({m2.unit})
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ranking.map((r) => (
+                            <tr key={r.name}>
+                              <th scope="row" style={{ fontWeight: 400 }}>
+                                {r.name}
+                              </th>
+                              <td className={s.num}>
+                                {r.absent ? <span className={s.absent}>미진출</span> : format(m2, r.value)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
 
-                <p className={s.caveat}>
-                  {opFiltered
-                    ? "‘미진출’은 선택한 운영기관의 충전기가 0기라는 뜻입니다. 국가 인프라 부족과 다릅니다."
-                    : "M1(EV 1,000대당)은 시도 단위, M2는 시군구 단위입니다. 해상도가 달라 직접 비교하지 않습니다."}
-                </p>
+                    <p className={s.caveat}>
+                      {opFiltered
+                        ? "‘미진출’은 선택한 운영기관의 충전기가 0기라는 뜻입니다. 국가 인프라 부족과 다릅니다."
+                        : "M1(EV 1,000대당)은 시도 단위, M2는 시군구 단위입니다. 해상도가 달라 직접 비교하지 않습니다."}
+                    </p>
+                  </>
+                )}
               </section>
             </div>
           </>
