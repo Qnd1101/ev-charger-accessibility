@@ -48,6 +48,8 @@ export default function App() {
   const [f, setF] = useState<Filters>(EMPTY_FILTERS);
   const [opQuery, setOpQuery] = useState("");
   const [view, setView] = useState<MapView>("region");
+  // 기본값 M2(기존 동작·하위 호환 유지). M1은 시도 해상도, M2는 시군구 해상도(metrics.json).
+  const [rankMetricId, setRankMetricId] = useState<"M1" | "M2">("M2");
 
   useEffect(() => {
     setError(null);
@@ -69,20 +71,48 @@ export default function App() {
   );
 
   /**
-   * 접근성 취약 랭킹. 지표(M2)의 정의·단위·정렬 방향은 `metrics.json` 에서 온다.
+   * 접근성 취약 랭킹. 지표(M1/M2)의 정의·단위·정렬 방향은 `metrics.json` 에서 온다.
    *
-   * 인구가 시군구 해상도면 시군구를, 시도로 떨어졌으면 시도를 세운다. 예전에는 시군구만
-   * 세워서, 인구가 시도로 떨어지면 배지는 "시도 · M2"라고 말하는데 표는 **조용히 비었다**.
+   * M2(시군구 해상도)는 인구가 시군구 단위로 있으면 시군구를, 시도로 떨어졌으면 시도를
+   * 세운다. 예전에는 시군구만 세워서, 인구가 시도로 떨어지면 배지는 "시도 · M2"라고
+   * 말하는데 표는 **조용히 비었다**. M1(EV1000대당)은 한전 통계 자체가 시도 단위라 항상
+   * 시도로 세운다.
    *
    * 운영기관을 고르면 0기 지역이 생기는데, 이건 국가 인프라 '부족'이 아니라 그 기관의
    * '미진출'이다. 결과에서 지우지 않고 다른 상태로 표시한다(CONTEXT.md 용어 구분).
    */
   const ranking = useMemo<RankRow[]>(() => {
     if (!data || !totals) return [];
-    const m2 = byId(data.metrics, "M2");
     const inScope = (zcode: number) => !f.zcodes.length || f.zcodes.includes(zcode);
     const absent = (t: Terms) => t.charger_count === 0 && f.operators.length > 0;
 
+    const byZcode = () => {
+      const acc = new Map<number, Terms>();
+      const zOf = new Map(data.regions.map((r) => [r.zscode, r.zcode]));
+      for (const [zscode, t] of totals) {
+        const z = zOf.get(zscode);
+        if (z === undefined) continue;
+        const cur = acc.get(z) ?? { charger_count: 0 };
+        cur.charger_count! += t.charger_count ?? 0;
+        acc.set(z, cur);
+      }
+      return acc;
+    };
+
+    if (rankMetricId === "M1") {
+      const m1 = byId(data.metrics, "M1");
+      const chargersByZcode = byZcode();
+      return data.sidos
+        .filter((sd) => inScope(sd.zcode))
+        .map((sd) => {
+          const t: Terms = { ...(chargersByZcode.get(sd.zcode) ?? { charger_count: 0 }), ev_count: sd.ev_count };
+          return { name: sd.name, value: evaluate(m1, t), absent: absent(t) };
+        })
+        .sort((a, b) => (a.value ?? 0) - (b.value ?? 0))
+        .slice(0, RANK_SIZE);
+    }
+
+    const m2 = byId(data.metrics, "M2");
     const sggRows = data.regions
       .filter((r) => inScope(r.zcode) && r.population)
       .map((r) => {
@@ -95,24 +125,16 @@ export default function App() {
     if (sggRows.length) return sggRows.sort((a, b) => (a.value ?? 0) - (b.value ?? 0)).slice(0, RANK_SIZE);
 
     // 시군구 인구가 없다 -> 시도로 강등한다. 빈 표를 내놓지 않는다.
-    const byZcode = new Map<number, Terms>();
-    const zOf = new Map(data.regions.map((r) => [r.zscode, r.zcode]));
-    for (const [zscode, t] of totals) {
-      const z = zOf.get(zscode);
-      if (z === undefined) continue;
-      const cur = byZcode.get(z) ?? { charger_count: 0 };
-      cur.charger_count! += t.charger_count ?? 0;
-      byZcode.set(z, cur);
-    }
+    const chargersByZcode = byZcode();
     return data.sidos
       .filter((sd) => inScope(sd.zcode) && sd.population)
       .map((sd) => {
-        const t: Terms = { ...(byZcode.get(sd.zcode) ?? { charger_count: 0 }), population: sd.population! };
+        const t: Terms = { ...(chargersByZcode.get(sd.zcode) ?? { charger_count: 0 }), population: sd.population! };
         return { name: sd.name, value: evaluate(m2, t), absent: absent(t) };
       })
       .sort((a, b) => (a.value ?? 0) - (b.value ?? 0))
       .slice(0, RANK_SIZE);
-  }, [data, totals, f.zcodes, f.operators.length]);
+  }, [data, totals, f.zcodes, f.operators.length, rankMetricId]);
 
   const opCounts = useMemo(() => {
     if (!data) return new Map<number, number>();
@@ -209,11 +231,15 @@ export default function App() {
   const opFiltered = f.operators.length > 0;
   const chargers = scopeTerms.charger_count ?? 0;
   const stations = scopeTerms.station_count ?? 0;
-  const m2 = byId(data.metrics, "M2");
+  const rankSpec = rankMetricId === "M1" ? byId(data.metrics, "M1") : byId(data.metrics, "M2");
+  const rankResolutionLabel = rankMetricId === "M1" ? "시도" : (meta.population_label ?? "시군구");
   const ratioKpis = [byId(data.metrics, "M3"), byId(data.metrics, "M5")];
   // 시군구·시도 어느 해상도로도 인구가 없으면 M2 를 계산할 수 없다(Streamlit tab_access 대응).
+  // M1 은 인구가 아니라 EV 등록 대수를 쓰므로 이 제약과 무관하다.
   const noPopulationData =
-    !data.regions.some((r) => r.population != null) && !data.sidos.some((s) => s.population != null);
+    rankMetricId === "M2" &&
+    !data.regions.some((r) => r.population != null) &&
+    !data.sidos.some((s) => s.population != null);
   const visibleOps = operators
     .map((name, i) => ({ name, i }))
     .filter((o) => (opQuery ? o.name.includes(opQuery) : true))
@@ -569,7 +595,25 @@ export default function App() {
                   <h2 className={s.panelTitle}>
                     {opFiltered ? "선택 운영기관 공급 현황" : "충전 인프라 부족 지역"}
                   </h2>
-                  <span className={s.badge}>{meta.population_label ?? "시군구"} · M2</span>
+                  <span className={s.badge}>{rankResolutionLabel} · {rankMetricId}</span>
+                  <div className={s.toggle} role="group" aria-label="랭킹 지표 선택">
+                    {(["M1", "M2"] as const).map((id) => (
+                      <button
+                        key={id}
+                        type="button"
+                        className={s.quickBtn}
+                        aria-pressed={rankMetricId === id}
+                        style={
+                          rankMetricId === id
+                            ? { borderColor: "var(--ink)", color: "var(--ink)", fontWeight: 600 }
+                            : undefined
+                        }
+                        onClick={() => setRankMetricId(id)}
+                      >
+                        {id}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 {noPopulationData ? (
                   <div className={s.empty} role="status">
@@ -587,19 +631,19 @@ export default function App() {
                 ) : (
                   <>
                     <div className={s.chart}>
-                      <RankingChart rows={ranking} unit={m2.unit} />
+                      <RankingChart rows={ranking} unit={rankSpec.unit} />
                     </div>
 
                     <div className={s.tableWrap}>
                       <table>
                         <caption>
-                          {m2.definition} <b>낮을수록 접근성이 취약</b>합니다. 오름차순 상위 {RANK_SIZE}곳.
+                          {rankSpec.definition} <b>낮을수록 접근성이 취약</b>합니다. 오름차순 상위 {RANK_SIZE}곳.
                         </caption>
                         <thead>
                           <tr>
                             <th scope="col">지역</th>
                             <th scope="col">
-                              {m2.id} ({m2.unit})
+                              {rankSpec.id} ({rankSpec.unit})
                             </th>
                           </tr>
                         </thead>
@@ -610,7 +654,7 @@ export default function App() {
                                 {r.name}
                               </th>
                               <td className={s.num}>
-                                {r.absent ? <span className={s.absent}>미진출</span> : format(m2, r.value)}
+                                {r.absent ? <span className={s.absent}>미진출</span> : format(rankSpec, r.value)}
                               </td>
                             </tr>
                           ))}
@@ -621,7 +665,7 @@ export default function App() {
                     <p className={s.caveat}>
                       {opFiltered
                         ? "‘미진출’은 선택한 운영기관의 충전기가 0기라는 뜻입니다. 국가 인프라 부족과 다릅니다."
-                        : "M1(EV 1,000대당)은 시도 단위, M2는 시군구 단위입니다. 해상도가 달라 직접 비교하지 않습니다."}
+                        : rankSpec.caveat}
                     </p>
                   </>
                 )}
