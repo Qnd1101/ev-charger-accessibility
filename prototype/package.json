@@ -9,7 +9,11 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc -b --noEmit",
-    "smoke": "node smoke.mjs"
+    "smoke": "node smoke.mjs",
+    "pretest:e2e": "(../.venv/bin/python e2e/fixtures/build_e2e_fixture.py || python3 e2e/fixtures/build_e2e_fixture.py) && vite build -c e2e/vite.e2e.config.ts",
+    "test:e2e": "playwright test",
+    "pretest:e2e:update-snapshots": "npm run pretest:e2e",
+    "test:e2e:update-snapshots": "playwright test --update-snapshots"
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans-kr": "^5.2.8",
