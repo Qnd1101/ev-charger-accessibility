@@ -1,0 +1,20 @@
+{
+  "extraKnownMarketplaces": {
+    "omc": {
+      "source": {
+        "source": "github",
+        "repo": "Yeachan-Heo/oh-my-claudecode"
+      }
+    },
+    "mattpocock": {
+      "source": {
+        "source": "github",
+        "repo": "mattpocock/skills"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "oh-my-claudecode@omc": true,
+    "mattpocock-skills@mattpocock": true
+  }
+}
