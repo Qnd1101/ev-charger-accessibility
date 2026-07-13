@@ -25,6 +25,7 @@ import {
 import { byId, evaluate, format } from "./metrics";
 
 const RANK_SIZE = 12;
+const OP_LIST_CAP = 60;
 const num = (n: number) => n.toLocaleString("ko-KR");
 
 /**
@@ -240,10 +241,12 @@ export default function App() {
     rankMetricId === "M2" &&
     !data.regions.some((r) => r.population != null) &&
     !data.sidos.some((s) => s.population != null);
-  const visibleOps = operators
+  // 목록은 60개에서 자른다(가상 스크롤 없이 335개를 심으면 렌더·스크롤 비용이 커진다).
+  // 잘렸다는 사실은 사용자에게 알린다. 이미 클라이언트에 있는 배열 길이만 쓴다.
+  const matchedOps = operators
     .map((name, i) => ({ name, i }))
-    .filter((o) => (opQuery ? o.name.includes(opQuery) : true))
-    .slice(0, 60);
+    .filter((o) => (opQuery ? o.name.includes(opQuery) : true));
+  const visibleOps = matchedOps.slice(0, OP_LIST_CAP);
   const unplacedChargers =
     "unplaced_chargers" in meta && typeof meta.unplaced_chargers === "number"
       ? meta.unplaced_chargers
@@ -390,6 +393,11 @@ export default function App() {
               </label>
             ))}
           </div>
+          {matchedOps.length > OP_LIST_CAP && (
+            <p className={s.listNote}>
+              총 {num(matchedOps.length)}곳 중 {num(OP_LIST_CAP)}곳 표시 · 검색으로 좁혀보세요
+            </p>
+          )}
         </fieldset>
 
         <fieldset className={s.field}>
