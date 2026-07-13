@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "postbuild": "npm run check-bundle-size",
     "preview": "vite preview",
     "test": "vitest run",
+    "check-bundle-size": "node scripts/check-bundle-size.mjs",
     "typecheck": "tsc -b --noEmit",
     "smoke": "node smoke.mjs",
     "pretest:e2e": "(../.venv/bin/python e2e/fixtures/build_e2e_fixture.py || python3 e2e/fixtures/build_e2e_fixture.py) && vite build -c e2e/vite.e2e.config.ts",
