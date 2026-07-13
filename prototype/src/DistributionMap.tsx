@@ -341,12 +341,14 @@ export default function DistributionMap({
       <div ref={box} className={s.map} />
       {(basemapMissing || boundaryState !== "ready") && <p role="status" className={s.status}>{fallbackMessage}</p>}
       <div className={s.controls}>
+        {/* 비활성 이유는 srOnly 라 스크린리더에만 닿는다. title 로 마우스 사용자에게도 노출한다. */}
         <button
           type="button"
           className={s.modeButton}
           aria-pressed={is3d}
           aria-disabled={!canUse3d}
           aria-describedby={!canUse3d ? THREE_D_REASON_ID : undefined}
+          title={!canUse3d ? availability.reason : undefined}
           onClick={() => {
             if (canUse3d) setIs3d((value) => !value);
           }}

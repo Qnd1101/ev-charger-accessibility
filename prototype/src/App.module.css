@@ -107,12 +107,38 @@
 
 .checkList {
   max-height: 168px;
+  /* 검색으로 목록이 60개→2개로 줄어도 높이를 유지해, 아래 블록(필터 후 충전기·데이터 출처)이
+     위로 확 당겨지며 다음 클릭 대상이 움직이는 것을 막는다. */
+  min-height: 168px;
   overflow-y: auto;
   border: 1px solid var(--line-rail);
   border-radius: var(--r1);
   background: var(--navy-2);
   padding: var(--s2);
   margin-top: var(--s2);
+  /* 스크롤 경계의 하드 컷을 부드럽게: 상·하 10px 페이드(순수 장식). */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 10px,
+    #000 calc(100% - 10px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 10px,
+    #000 calc(100% - 10px),
+    transparent 100%
+  );
+}
+
+/* 60개 절단 안내. 목록이 잘렸다는 사실을 사용자가 알 수 있어야 한다. */
+.listNote {
+  margin: var(--s2) 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--rail-ink-2);
 }
 
 .checkList label {
@@ -161,6 +187,9 @@
   border-top: 1px solid var(--line-rail);
   padding-top: var(--s4);
   margin-top: var(--s5);
+  /* 값 자릿수가 바뀌어도 블록 높이가 변하지 않도록 하한을 준다(하단 '데이터 출처' 흔들림 완충). */
+  min-height: 108px;
+  transition: min-height 200ms ease;
 }
 
 .railResultValue {
@@ -389,9 +418,22 @@
   height: 300px;
 }
 
+/* 차트가 1차 정보, 표는 검증·스크린리더용 2차 정보. 구분선과 낮은 톤으로 위계만 낮춘다
+   (표 자체는 항상 보이고 접근 가능해야 한다 — 삭제·접기 금지). */
 .tableWrap {
   overflow-x: auto;
   margin-top: var(--s3);
+  border-top: 1px solid var(--line);
+  padding-top: var(--s3);
+}
+
+.tableWrap table {
+  font-size: 12px;
+}
+
+.tableWrap tbody th,
+.tableWrap tbody td {
+  color: var(--ink-2);
 }
 
 table {
@@ -402,7 +444,7 @@ table {
 
 caption {
   text-align: left;
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--ink-2);
   padding-bottom: var(--s2);
 }
@@ -574,14 +616,17 @@ td.num {
 
   .checkList {
     max-height: 116px;
+    min-height: 116px;
   }
 
+  /* 가로 배치에서는 한 줄로 눕는다. 세로 완충용 min-height 는 여기서 필요 없다(빈 띠만 생긴다). */
   .railResult {
     grid-column: 1 / -1;
     display: flex;
     align-items: baseline;
     gap: var(--s3);
     margin-top: var(--s2);
+    min-height: 0;
   }
 
   .rail > details {
@@ -606,15 +651,32 @@ td.num {
   }
 }
 
-/* 모바일: KPI 와 순위를 1열로 쌓아 읽게 한다 */
+/* 모바일: KPI 와 순위를 1열로 쌓아 읽게 한다.
+   또한 첫 화면이 전부 필터로 채워지지 않도록, DOM 순서는 그대로 두고 CSS order 로만
+   분석 캔버스(제목·ACTIVE SCOPE·KPI)를 필터 레일보다 먼저 그린다. 접근성 트리 순서·role 불변. */
 @media (max-width: 560px) {
+  .shell {
+    display: flex;
+    flex-direction: column;
+  }
+
   .rail {
     grid-template-columns: 1fr;
     padding: var(--s4);
+    order: 2;
   }
 
   .canvas {
     padding-inline: var(--s3);
+    display: flex;
+    flex-direction: column;
+    order: 1;
+  }
+
+  /* 지금 뭐가 걸려 있는지를 스크롤 없이 먼저 보여준다(같은 엘리먼트를 order 로만 이동). */
+  .scope {
+    order: -1;
+    margin-top: 0;
   }
 
   .kpis {
