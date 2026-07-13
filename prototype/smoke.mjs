@@ -17,6 +17,11 @@ const expected = meta.total_chargers.toLocaleString("ko-KR");
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
 
+// CI/샌드박스에서도 외부 통신 실패 경로를 결정적으로 검증한다. JSON 파싱 실패는 앱이
+// 잡아 로컬 격자로 강등하므로 브라우저 자체의 네트워크 오류를 콘솔 실패로 오인하지 않는다.
+await page.route("https://basemaps.cartocdn.com/gl/positron-gl-style/style.json", (route) =>
+  route.fulfill({ status: 200, contentType: "application/json", body: "{" }));
+
 const errors = [];
 page.on("pageerror", (e) => errors.push(String(e)));
 page.on("console", (m) => m.type() === "error" && errors.push(m.text()));

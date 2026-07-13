@@ -15,6 +15,7 @@ from conftest import ROOT
 from metric_specs import COUNT_FIELDS, REGION_FIELDS
 
 DATA_DIR = ROOT / "prototype" / "public" / "data"
+BOUNDARY_REF = ROOT / "data" / "ref" / "sigungu.topo.json"
 
 # build_web_data.py 의 슬라이스 인코딩
 SPEED_ALL, SPEED_FAST, SPEED_SLOW = 0, 1, 2
@@ -28,7 +29,7 @@ def _load(name: str):
     path = DATA_DIR / name
     if not path.exists():
         pytest.skip("희소 집계가 아직 없습니다 -- `python scripts/build_web_data.py`")
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="module")
@@ -61,6 +62,26 @@ def grid_cube() -> pd.DataFrame:
 
 class TestSchema:
     """컬럼 수가 바뀌면 화면의 인덱스 접근이 통째로 밀린다. 조용히 틀리느니 여기서 터진다."""
+
+    def test_exported_json_is_utf8(self) -> None:
+        """브라우저 JSON 계약은 OS 기본 인코딩이 아니라 UTF-8이다.
+
+        한국어가 없는 숫자 큐브만 검사하면 Windows CP949 출력 결함을 놓치므로,
+        실제 한국어 메타데이터도 UTF-8 바이트에서 복원되는지 함께 고정한다.
+        """
+        paths = sorted(DATA_DIR.glob("*.json"))
+        if not paths:
+            pytest.skip("희소 집계가 아직 없습니다 -- `python scripts/build_web_data.py`")
+
+        decoded = {path.name: path.read_bytes().decode("utf-8") for path in paths}
+        for text in decoded.values():
+            json.loads(text)
+        assert '"population_label":"시군구"' in decoded["meta.json"]
+
+    def test_reference_boundary_is_published_unchanged(self) -> None:
+        """웹 데이터 재생성 뒤에도 앱 경로에 공식 참조 경계가 정확히 있어야 한다."""
+        published = DATA_DIR / BOUNDARY_REF.name
+        assert published.read_bytes() == BOUNDARY_REF.read_bytes()
 
     def test_region_cube_row_width(self) -> None:
         rows = _load("region_cube.json")

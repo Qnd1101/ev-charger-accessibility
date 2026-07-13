@@ -25,12 +25,14 @@ usage:
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from pathlib import Path
 
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
+BOUNDARY_PATH = ROOT / "data" / "ref" / "sigungu.topo.json"
 sys.path.insert(0, str(ROOT / "src"))
 
 from display import GRID_DEG  # noqa: E402
@@ -225,8 +227,16 @@ def main() -> None:
     }
     for name, obj in payload.items():
         path = OUT_DIR / name
-        path.write_text(json.dumps(obj, ensure_ascii=False, separators=(",", ":")))
+        path.write_text(
+            json.dumps(obj, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
+        )
         print(f"{path.relative_to(ROOT)}: {path.stat().st_size / 1e6:.2f} MB")
+
+    # 경계는 생성 데이터가 아니라 커밋된 참조 자산이다. 앱이 읽는 public/data에 함께
+    # 게시해야 새 체크아웃에서도 코로플레스가 조용히 격자로 강등되지 않는다.
+    boundary_output = OUT_DIR / BOUNDARY_PATH.name
+    shutil.copyfile(BOUNDARY_PATH, boundary_output)
+    print(f"{boundary_output.relative_to(ROOT)}: {boundary_output.stat().st_size / 1e6:.2f} MB")
 
 
 if __name__ == "__main__":

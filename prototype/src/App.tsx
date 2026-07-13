@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import s from "./App.module.css";
+import DataProvenance from "./DataProvenance";
 import DistributionMap, { type MapView } from "./DistributionMap";
 import RankingChart, { type RankRow } from "./RankingChart";
 import {
@@ -43,19 +44,28 @@ const SPEED_LABELS: [SpeedFilter, string][] = [
 export default function App() {
   const [data, setData] = useState<Dataset | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [f, setF] = useState<Filters>(EMPTY_FILTERS);
   const [opQuery, setOpQuery] = useState("");
-  const [view, setView] = useState<MapView>("grid");
+  const [view, setView] = useState<MapView>("region");
 
   useEffect(() => {
-    loadDataset().then(setData, (e: Error) => setError(e.message));
-  }, []);
+    setError(null);
+    loadDataset().then(setData, (caught: unknown) => {
+      setError(caught instanceof Error ? caught.message : "집계 데이터를 불러오는 중 알 수 없는 오류가 발생했습니다.");
+    });
+  }, [loadAttempt]);
 
   const totals = useMemo(() => (data ? aggregateRegions(data, f) : null), [data, f]);
   const cells = useMemo(() => (data ? aggregateGrid(data, f) : []), [data, f]);
   const scopeTerms = useMemo<Terms | null>(
     () => (data && totals ? totalTerms(data, f, totals) : null),
     [data, f, totals],
+  );
+
+  const nationalTotals = useMemo(
+    () => (data ? aggregateRegions(data, EMPTY_FILTERS) : null),
+    [data],
   );
 
   /**
@@ -76,7 +86,10 @@ export default function App() {
     const sggRows = data.regions
       .filter((r) => inScope(r.zcode) && r.population)
       .map((r) => {
-        const t: Terms = { ...(totals.get(r.zscode) ?? {}), population: r.population! };
+        const t: Terms = {
+          ...(totals.get(r.zscode) ?? { charger_count: 0 }),
+          population: r.population!,
+        };
         return { name: `${shortSido(r.sido)} ${r.sigungu}`, value: evaluate(m2, t), absent: absent(t) };
       });
     if (sggRows.length) return sggRows.sort((a, b) => (a.value ?? 0) - (b.value ?? 0)).slice(0, RANK_SIZE);
@@ -111,12 +124,62 @@ export default function App() {
     return m;
   }, [data]);
 
+  /**
+   * 지도 값도 Python이 내보낸 M2 정의를 evaluate한다. 여기서는 극성에 따라 색·높이용
+   * 취약 방향만 맞추며, 필터가 바뀌어도 무필터 전국 범위를 고정한다.
+   */
+  const mapMetric = useMemo(() => {
+    if (!data || !totals || !nationalTotals) {
+      return { regionValues: [], fixedVulnerabilityMax: undefined };
+    }
+    const spec = byId(data.metrics, "M2");
+    const valuesFor = (regionTotals: Map<number, Terms>) => data.regions.map((region) => {
+      const terms: Terms = {
+        ...(regionTotals.get(region.zscode) ?? {}),
+        ...(region.population == null ? {} : { population: region.population }),
+      };
+      return { zscode: region.zscode, value: evaluate(spec, terms) };
+    });
+    const national = valuesFor(nationalTotals);
+    const valid = national.flatMap(({ value }) => value == null ? [] : [value]);
+    if (!valid.length || spec.polarity === "neutral") {
+      return {
+        regionValues: valuesFor(totals).map((region) => ({ ...region, vulnerability: null })),
+        fixedVulnerabilityMax: undefined,
+      };
+    }
+
+    const lower = Math.min(...valid);
+    const upper = Math.max(...valid);
+    const fixedVulnerabilityMax = upper - lower;
+    const vulnerabilityOf = (value: number | null) => {
+      if (value == null) return null;
+      const directed = spec.polarity === "low_is_vulnerable" ? upper - value : value - lower;
+      return Math.min(fixedVulnerabilityMax, Math.max(0, directed));
+    };
+    return {
+      regionValues: valuesFor(totals).map((region) => ({
+        ...region,
+        vulnerability: vulnerabilityOf(region.value),
+      })),
+      fixedVulnerabilityMax,
+    };
+  }, [data, nationalTotals, totals]);
+
   if (error) {
     return (
       <main className={s.canvas}>
         <div className={s.error}>
           <h1 className={s.h1}>집계 데이터를 읽지 못했습니다</h1>
-          <p>{error}</p>
+          <p>
+            정적 집계 파일을 불러오는 단계에서 실패했습니다. {error}
+          </p>
+          <p className={s.kpiNote}>
+            파일이 없거나 손상됐다면 <code>python scripts/build_web_data.py</code>로 다시 생성할 수 있습니다.
+          </p>
+          <button type="button" className={s.errorRetry} onClick={() => setLoadAttempt((n) => n + 1)}>
+            데이터 다시 불러오기
+          </button>
         </div>
       </main>
     );
@@ -152,6 +215,10 @@ export default function App() {
     .map((name, i) => ({ name, i }))
     .filter((o) => (opQuery ? o.name.includes(opQuery) : true))
     .slice(0, 60);
+  const unplacedChargers =
+    "unplaced_chargers" in meta && typeof meta.unplaced_chargers === "number"
+      ? meta.unplaced_chargers
+      : 0;
 
   const toggle = <T,>(list: T[], v: T): T[] =>
     list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
@@ -178,6 +245,40 @@ export default function App() {
       ? [{ key: "h24", label: "24시간 이용가능", clear: () => setF({ ...f, only24h: false }) }]
       : []),
   ];
+
+  const emptyReasons = [
+    f.zcodes.length > 0
+      ? `선택 지역: ${f.zcodes.map((z) => sidos.find((sd) => sd.zcode === z)?.name ?? z).join(", ")}`
+      : null,
+    f.operators.length > 0
+      ? `선택 운영기관: ${f.operators.map((i) => operators[i]).join(", ")}`
+      : null,
+    f.speed !== SPEED.ALL
+      ? `충전 속도: ${SPEED_LABELS.find(([value]) => value === f.speed)?.[1]}`
+      : null,
+    f.only24h ? "이용 시간: 24시간 이용가능만" : null,
+  ].filter((reason): reason is string => reason !== null);
+
+  const filterDimensions = [
+    f.zcodes.length > 0
+      ? { key: "region", label: "지역", relaxed: { ...f, zcodes: [] } }
+      : null,
+    f.operators.length > 0
+      ? { key: "operator", label: "운영기관", relaxed: { ...f, operators: [] } }
+      : null,
+    f.speed !== SPEED.ALL
+      ? { key: "speed", label: "충전 속도", relaxed: { ...f, speed: SPEED.ALL } }
+      : null,
+    f.only24h
+      ? { key: "hours", label: "이용 시간", relaxed: { ...f, only24h: false } }
+      : null,
+  ].filter((dimension): dimension is { key: string; label: string; relaxed: Filters } => dimension !== null)
+    .map((dimension) => {
+      const relaxedTotals = aggregateRegions(data, dimension.relaxed);
+      const restored = (totalTerms(data, dimension.relaxed, relaxedTotals).charger_count ?? 0) > 0;
+      return { ...dimension, restored };
+    });
+  const individuallyRecoverable = filterDimensions.filter((dimension) => dimension.restored);
 
   return (
     <div className={s.shell}>
@@ -291,6 +392,7 @@ export default function App() {
             전체 초기화
           </button>
         </div>
+        <DataProvenance />
       </aside>
 
       <main className={s.canvas}>
@@ -330,12 +432,48 @@ export default function App() {
         </div>
 
         {chargers === 0 ? (
-          <div className={s.empty}>
+          <div className={s.empty} role="status" aria-live="polite">
             <h2 className={s.panelTitle}>조건에 맞는 충전기가 0기입니다</h2>
+            <p className={s.kpiNote}>다음 조건의 교집합에 등록된 충전기가 없습니다.</p>
+            <ul className={s.emptyReasons}>
+              {emptyReasons.map((reason) => <li key={reason}>{reason}</li>)}
+            </ul>
+            <h3 className={s.emptyGuideTitle}>복구 가능한 조건</h3>
+            <ul className={s.recoveryList}>
+              {filterDimensions.map((dimension) => (
+                <li key={dimension.key}>
+                  <span>
+                    {dimension.label}: {dimension.restored ? "이 조건만 완화하면 결과가 복구됩니다." : "이 조건만 완화해도 0기입니다."}
+                  </span>
+                  {dimension.restored && (
+                    <button
+                      type="button"
+                      className={s.recoveryBtn}
+                      onClick={() => setF(dimension.relaxed)}
+                    >
+                      {dimension.label} 조건 해제
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
             <p className={s.kpiNote}>
-              현재 걸린 조건: {chips.map((c) => c.label).join(" · ")}. 아래에서 한 번에 해제할 수 있습니다.
+              {filterDimensions.length === 1
+                ? individuallyRecoverable.length > 0
+                  ? "현재 0건은 단일 조건에서 발생했습니다. 이 조건을 완화하면 결과가 복구됩니다."
+                  : "현재 0건은 단일 조건에서 발생했지만 이 차원 전체를 완화해도 복구되지 않습니다. 데이터를 확인하세요."
+                : individuallyRecoverable.length > 0
+                  ? "현재 0건은 여러 조건의 교집합에서 발생했습니다. ‘복구됩니다’로 표시된 조건 하나를 완화할 수 있습니다."
+                  : "단일 조건 완화만으로 복구되지 않는 조합 원인입니다. 여러 조건을 함께 완화하거나 모든 필터를 해제하세요."}
             </p>
-            <button type="button" className={s.quickBtn} onClick={() => setF(EMPTY_FILTERS)}>
+            <button
+              type="button"
+              className={s.quickBtn}
+              onClick={() => {
+                setF(EMPTY_FILTERS);
+                setOpQuery("");
+              }}
+            >
               모든 필터 해제
             </button>
           </div>
@@ -380,9 +518,11 @@ export default function App() {
               <section className={s.panel} aria-label="충전기 분포">
                 <div className={s.panelHead}>
                   <h2 className={s.panelTitle}>충전기 분포</h2>
-                  <span className={s.badge}>2km 격자</span>
+                  <span className={s.badge}>
+                    {view === "region" ? "시군구 코로플레스" : view === "grid" ? "2km 격자" : "밀도 히트맵"}
+                  </span>
                   <div className={s.toggle} role="group" aria-label="지도 표시 방식">
-                    {(["grid", "heat"] as MapView[]).map((v) => (
+                    {(["region", "grid", "heat"] as MapView[]).map((v) => (
                       <button
                         key={v}
                         type="button"
@@ -395,17 +535,26 @@ export default function App() {
                         }
                         onClick={() => setView(v)}
                       >
-                        {v === "grid" ? "격자" : "히트맵"}
+                        {v === "region" ? "코로플레스" : v === "grid" ? "격자" : "히트맵"}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div className={s.map}>
-                  <DistributionMap cells={cells} view={view} gridDeg={meta.grid_deg} />
+                  <DistributionMap
+                    cells={cells}
+                    view={view}
+                    gridDeg={meta.grid_deg}
+                    regionValues={mapMetric.regionValues}
+                    fixedVulnerabilityMax={mapMetric.fixedVulnerabilityMax}
+                  />
                 </div>
                 <p className={s.caveat}>
                   지도는 셀 {num(cells.length)}개로 집계된 값입니다. 좌표가 무효한 충전기{" "}
                   {num(meta.invalid_coord_chargers)}기는 <b>지도에서만 빠지고</b> 위 집계에는 포함됩니다.
+                  {unplacedChargers > 0 && (
+                    <> 지역에 배치할 수 없는 충전기 {num(unplacedChargers)}기도 지역·지도 집계에서 제외됩니다.</>
+                  )}
                 </p>
               </section>
 

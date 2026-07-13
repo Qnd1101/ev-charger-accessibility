@@ -355,6 +355,18 @@
   gap: var(--s1);
 }
 
+/* quickBtn은 어두운 필터 레일과 밝은 분석 패널에서 함께 쓰인다.
+   지도 탭에서는 밝은 배경용 토큰을 써 비활성·hover 상태도 WCAG AA 대비를 유지한다. */
+.toggle .quickBtn {
+  border-color: var(--line);
+  color: var(--ink-2);
+}
+
+.toggle .quickBtn:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
 .map {
   height: 420px;
   border-radius: var(--r1);
@@ -432,8 +444,78 @@ td.num {
   margin-top: var(--s4);
 }
 
+.emptyReasons {
+  margin: var(--s3) 0;
+  padding-left: var(--s5);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.emptyGuideTitle {
+  margin: var(--s4) 0 var(--s2);
+  font-size: 13px;
+}
+
+.recoveryList {
+  display: grid;
+  gap: var(--s2);
+  margin: 0 0 var(--s3);
+  padding: 0;
+  list-style: none;
+}
+
+.recoveryList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-height: 44px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+}
+
+.recoveryBtn {
+  min-height: 36px;
+  flex: 0 0 auto;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  padding: 0 var(--s3);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.recoveryBtn:hover {
+  background: var(--ink);
+  color: var(--ivory-2);
+}
+
 .error {
   border-left-color: var(--red);
+}
+
+.error code {
+  overflow-wrap: anywhere;
+}
+
+.errorRetry {
+  min-height: 44px;
+  border: 1px solid var(--red);
+  border-radius: 999px;
+  padding: 0 var(--s4);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.errorRetry:hover {
+  background: var(--red);
+  color: #fff;
 }
 
 .skeleton {
@@ -500,6 +582,10 @@ td.num {
     margin-top: var(--s2);
   }
 
+  .rail > details {
+    grid-column: 1 / -1;
+  }
+
   .railResult button {
     margin-top: 0 !important;
     margin-left: auto;
@@ -520,6 +606,15 @@ td.num {
 
 /* 모바일: KPI 와 순위를 1열로 쌓아 읽게 한다 */
 @media (max-width: 560px) {
+  .rail {
+    grid-template-columns: 1fr;
+    padding: var(--s4);
+  }
+
+  .canvas {
+    padding-inline: var(--s3);
+  }
+
   .kpis {
     grid-template-columns: 1fr;
   }
@@ -534,5 +629,18 @@ td.num {
 
   .boundary {
     margin-left: 0;
+  }
+
+  .quickBtn,
+  .reset,
+  .chipX,
+  .recoveryBtn {
+    min-height: 44px;
+  }
+
+  .recoveryList li {
+    align-items: flex-start;
+    flex-direction: column;
+    padding-bottom: var(--s2);
   }
 }

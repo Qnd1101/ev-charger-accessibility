@@ -1,0 +1,69 @@
+.root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.map {
+  width: 100%;
+  height: 100%;
+}
+
+.status {
+  position: absolute;
+  left: var(--s3);
+  bottom: var(--s3);
+  max-width: calc(100% - 2 * var(--s3));
+  margin: 0;
+  padding: 7px 10px;
+  border-radius: var(--s1);
+  color: var(--rail-ink);
+  background: rgb(7 17 31 / 88%);
+  font-size: 12px;
+}
+
+.controls {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.modeButton {
+  padding: 6px 9px;
+  border: 1px solid rgb(7 17 31 / 35%);
+  border-radius: var(--s1);
+  color: var(--navy);
+  background: var(--ivory);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.modeButton[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.disclosure {
+  width: 220px;
+  margin: 0;
+  padding: 7px 9px;
+  border-radius: var(--s1);
+  color: var(--navy);
+  background: #ffebbd;
+  font-size: 12px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

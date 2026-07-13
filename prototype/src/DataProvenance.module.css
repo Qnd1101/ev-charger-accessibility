@@ -1,0 +1,80 @@
+.panel {
+  border-top: 1px solid var(--line-rail);
+  margin-top: var(--s5);
+  padding-top: var(--s4);
+  color: var(--rail-ink-2);
+}
+
+.summary {
+  color: var(--rail-ink);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.intro,
+.purpose,
+.network {
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.list {
+  list-style: none;
+  margin: var(--s3) 0;
+  padding: 0;
+}
+
+.source {
+  border-left: 2px solid var(--cyan);
+  padding-left: var(--s3);
+  margin-bottom: var(--s4);
+}
+
+.link {
+  color: var(--rail-ink);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  text-underline-offset: 3px;
+}
+
+.external {
+  color: var(--cyan);
+  margin-left: 4px;
+}
+
+.meta {
+  margin: var(--s2) 0;
+  font-size: 11px;
+}
+
+.meta div {
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  gap: var(--s2);
+  margin: 3px 0;
+}
+
+.meta dt {
+  color: var(--rail-ink-2);
+}
+
+.meta dd {
+  color: var(--rail-ink);
+  margin: 0;
+}
+
+.purpose,
+.network {
+  margin: var(--s2) 0 0;
+}
+
+.network {
+  border: 1px solid var(--line-rail);
+  border-radius: var(--r1);
+  padding: var(--s2) var(--s3);
+}

@@ -1,0 +1,48 @@
+시군구 경계 TopoJSON 출처 및 변환 기록
+
+원본 데이터
+- 데이터명: 국가데이터처_SGIS 행정구역 통계 및 경계_20250630
+- 제공기관: 국가데이터처 공간정보서비스과
+- 기준일: 2025-06-30 (원본 DBF BASE_DATE=20250630)
+- 공식 메타데이터: https://www.data.go.kr/data/15129688/fileData.do
+- 비로그인 직접 다운로드: https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003601705&fileDetailSn=1&insertDataPrcus=N
+- 이용허락범위: 제한 없음
+- 원본 ZIP 크기: 251,294,559 bytes
+- 원본 ZIP SHA-256: 3F517984BFDF4BBE43EE2A8849CFF010D70AC5A826F880E6976B9A1F2B30611B
+
+원본 형식
+- SHP 구성 파일: bnd_sigungu_00_2025_2Q.shp/.shx/.dbf/.prj/.cpg
+- 문자 인코딩: UTF-8 (.cpg 확인)
+- 좌표계: Korea 2000 / Unified CS (EPSG:5179, .prj 확인)
+- 원본 레코드: 252개
+- 원본 코드 필드: SIGUNGU_CD
+- 세종 원본 코드: 29010 (저장소 zscode 36110으로 명시 매핑)
+
+변환 절차
+1. data/raw/sgis_admin_boundaries_2025/sgis_to_zscode.csv의 명시적 매핑으로
+   SGIS SIGUNGU_CD를 저장소 zscode로 변환했다.
+2. 다음 명령으로 일반구를 상위 시 zscode에 dissolve하고 WGS84로 재투영한 뒤,
+   Visvalingam 1% + keep-shapes, quantization 100000 조건으로 TopoJSON을 생성했다.
+
+   npx.cmd --yes mapshaper data/raw/sgis_admin_boundaries_2025/bnd_sigungu_00_2025_2Q.shp -join data/raw/sgis_admin_boundaries_2025/sgis_to_zscode.csv keys=SIGUNGU_CD,SIGUNGU_CD fields=zscode string-fields=SIGUNGU_CD -dissolve zscode -proj wgs84 -simplify visvalingam 1% keep-shapes -filter-fields zscode -o format=topojson quantization=100000 force data/ref/sigungu.topo.json
+
+3. 저장소 data/ref/zscode_map.csv가 현행 대구 군위 코드 27720과 폐지된 경북 군위
+   코드 47720을 동시에 포함하지만, 공식 물리 경계는 복제하지 않고 현행 27720만 유지했다.
+   화면 경계 어댑터에서 47720을 27720으로 별칭 처리한다.
+
+산출물 검증
+- TopoJSON SHA-256: 8B66554CE7CB2B626649AE2843EA32A90833B0D4D9C6908094E3E2E0060EA296
+- 크기: 566,658 bytes (600,000 bytes 미만)
+- 코드: 서로 다른 물리 경계 229개, 중복 코드 0, 현행 코드 기준 누락 0 / 잉여 0
+- 세종 36110: 1개
+- 좌표 범위: 경도 124.60971767856577~131.87181870803295,
+  위도 33.112379843639616~38.6134893172121
+- 옹진군 28720, 울릉군 47940, 제주시 50110, 서귀포시 50130의
+  MultiPolygon 도형이 남아 있다.
+
+중요한 검증 제한
+- 공식 2025 원본에는 군위군 도형이 현행 대구 코드에 대응하는 1개뿐이다.
+- 산출물은 현행 27720 도형 하나만 가지며 폐지된 47720 도형을 복제하지 않는다.
+- 현재 실데이터에는 27720 충전기 203기가 있고 47720 충전기는 0기이며, 47720 인구는
+  결측이다. 화면 경계 어댑터는 47720을 27720으로 정규화해 no-data 별칭이 현행 값을
+  덮지 않게 하며, 두 코드에 유효한 값이 동시에 있으면 조인을 거부한다.
