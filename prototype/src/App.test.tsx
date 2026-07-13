@@ -61,6 +61,13 @@ const dataset: Dataset = {
     station_overcount_max: 0,
   },
   metrics: [
+    {
+      ...metric("M1", "charger_count", "ev_count"),
+      resolution: "sido",
+      unit: "기/EV1000대",
+      isRatio: false,
+      denominator: { field: "ev_count", scale: 1000 },
+    },
     metric("M2", "charger_count", "population"),
     metric("M3", "fast_count", "charger_count"),
     metric("M5", "available_count", "live_count"),
@@ -147,6 +154,22 @@ describe("App 빈 결과 상태", () => {
     expect(screen.getByText(/python scripts\/build_web_data\.py/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "데이터 다시 불러오기" }));
     expect(await screen.findByRole("heading", { name: "대한민국 충전 인프라 관제" })).toBeInTheDocument();
+  });
+
+  it("M1/M2 토글: M1을 선택하면 해상도가 시도로, 분모가 EV 등록대수로 바뀐다", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await screen.findByText("시군구 · M2")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "M1" }));
+
+    expect(await screen.findByText("시도 · M1")).toBeInTheDocument();
+    // 서울특별시 시도 합계 충전기 10기(9+1), EV 등록 100대 -> 10 / (100/1000) = 100.0.
+    expect(screen.getByRole("row", { name: /서울특별시.*100\.0/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "M2" }));
+    expect(await screen.findByText("시군구 · M2")).toBeInTheDocument();
   });
 
   it("로드 성공 전체 화면에 색 대비 외 axe 위반이 없다", async () => {

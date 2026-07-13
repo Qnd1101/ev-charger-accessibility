@@ -37,5 +37,8 @@ data/processed/
 # 화면용 희소 집계도 파생 데이터다 (scripts/build_web_data.py 로 재생성)
 prototype/public/data/
 
+# Playwright E2E 용 합성 픽스처 산출물 (prototype/e2e/fixtures 로 재생성)
+prototype/e2e/.output/
+
 # TypeScript 증분 빌드 캐시
 *.tsbuildinfo

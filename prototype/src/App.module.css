@@ -357,12 +357,14 @@
 
 /* quickBtn은 어두운 필터 레일과 밝은 분석 패널에서 함께 쓰인다.
    지도 탭에서는 밝은 배경용 토큰을 써 비활성·hover 상태도 WCAG AA 대비를 유지한다. */
-.toggle .quickBtn {
+.toggle .quickBtn,
+.empty .quickBtn {
   border-color: var(--line);
   color: var(--ink-2);
 }
 
-.toggle .quickBtn:hover {
+.toggle .quickBtn:hover,
+.empty .quickBtn:hover {
   border-color: var(--ink);
   color: var(--ink);
 }
