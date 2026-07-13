@@ -15,6 +15,7 @@ import {
   SPEED,
   aggregateGrid,
   aggregateRegions,
+  aggregateStatusDistribution,
   loadDataset,
   totalTerms,
   type Dataset,
@@ -70,6 +71,16 @@ export default function App() {
     () => (data ? aggregateRegions(data, EMPTY_FILTERS) : null),
     [data],
   );
+
+  /** 개요 패널의 충전기 상태 분포 표. 합계는 위 '충전기' KPI와 일치해야 한다(같은 큐브 키). */
+  const statusRows = useMemo(() => {
+    if (!data) return [];
+    const counts = aggregateStatusDistribution(data, f);
+    return data.statusCube.labels
+      .map((label, i) => ({ label, count: counts[i] ?? 0 }))
+      .filter((row) => row.count > 0)
+      .sort((a, b) => b.count - a.count);
+  }, [data, f]);
 
   /**
    * 접근성 취약 랭킹. 지표(M1/M2)의 정의·단위·정렬 방향은 `metrics.json` 에서 온다.
@@ -549,6 +560,37 @@ export default function App() {
                   <p className={s.kpiNote}>{spec.caveat ?? spec.definition}</p>
                 </div>
               ))}
+            </section>
+
+            <section className={s.panel} aria-label="충전기 상태 분포">
+              <div className={s.panelHead}>
+                <h2 className={s.panelTitle}>충전기 상태 분포</h2>
+                <span className={s.badge}>{num(chargers)}기 기준</span>
+              </div>
+              <div className={s.tableWrap}>
+                <table>
+                  <caption>
+                    선택한 필터 범위의 충전기를 상태별로 센 표입니다. 합계는 위 &lsquo;충전기&rsquo; 지표와 일치해야
+                    합니다.
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">상태</th>
+                      <th scope="col">충전기 수</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statusRows.map((row) => (
+                      <tr key={row.label}>
+                        <th scope="row" style={{ fontWeight: 400 }}>
+                          {row.label}
+                        </th>
+                        <td className={s.num}>{num(row.count)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </section>
 
             <div className={s.split}>

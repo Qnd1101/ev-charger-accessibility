@@ -35,7 +35,7 @@ ROOT = Path(__file__).resolve().parent.parent
 BOUNDARY_PATH = ROOT / "data" / "ref" / "sigungu.topo.json"
 sys.path.insert(0, str(ROOT / "src"))
 
-from display import GRID_DEG  # noqa: E402
+from display import GRID_DEG, STAT_LABELS, label_stat  # noqa: E402
 from metric_specs import to_json as metric_specs_json  # noqa: E402
 from metrics import (  # noqa: E402
     CLEAN_PATH,
@@ -106,6 +106,32 @@ def build_region_cube(df: pd.DataFrame, op_idx: dict[str, int]) -> list[list[int
     return rows
 
 
+def build_status_cube(
+    df: pd.DataFrame, op_idx: dict[str, int], labels_order: list[str]
+) -> list[list[int]]:
+    """[zscode, opIdx, speed, h24, <labels_order 순서대로 충전기 수>] 행.
+
+    개요 패널의 "충전기 상태 분포" 표용. region_cube 와 같은 (zscode, busiNm, speed, h24)
+    키를 쓰지만 값이 5개 지표 대신 상태 코드별 개수다 -- 화면은 필터에 맞는 행만 더한다.
+    `label_stat` 로 코드북에 없는 stat 값도 라벨을 갖게 한다(display.py) -- 조용히 빠지면
+    안 된다.
+    """
+    rows: list[list[int]] = []
+    for speed, h24, sl in _slices(df):
+        counts = (
+            sl.assign(stat_label=label_stat(sl["stat"]))
+            .groupby(["zscode", "busiNm", "stat_label"])
+            .size()
+            .unstack(fill_value=0)
+            .reindex(columns=labels_order, fill_value=0)
+        )
+        rows.extend(
+            [int(zscode), op_idx[busi_nm], speed, h24, *(int(v) for v in row)]
+            for (zscode, busi_nm), row in counts.iterrows()
+        )
+    return rows
+
+
 def build_grid_cube(df: pd.DataFrame, op_idx: dict[str, int]) -> list[list[int]]:
     """[latE3, lngE3, zcode, opIdx, fast, h24only, 충전기] 행.
 
@@ -150,6 +176,13 @@ def main() -> None:
     operators = df["busiNm"].value_counts()  # 충전기 수 내림차순 -> 상위 10개가 앞에 온다
     op_names = list(operators.index)
     op_idx = {name: i for i, name in enumerate(op_names)}
+
+    # 상태 라벨 순서는 코드북 순서(STAT_LABELS)를 우선하고, 코드북에 없는 값이 실제로
+    # 있으면 그 라벨을 뒤에 덧붙인다 -- 스냅샷마다 열 순서가 흔들리지 않아야 화면이 매 필터
+    # 조합에서 같은 열 인덱스를 더할 수 있다.
+    known_labels = list(STAT_LABELS.values())
+    extra_labels = sorted(set(label_stat(df["stat"]).unique()) - set(known_labels))
+    status_labels = known_labels + extra_labels
 
     sido = pd.read_parquet(PROCESSED_DIR / "metrics_sido.parquet")
     population = load_population()
@@ -223,6 +256,10 @@ def main() -> None:
         "operators.json": op_names,
         "regions.json": {"regions": regions, "sidos": sidos},
         "region_cube.json": build_region_cube(df, op_idx),
+        "status_cube.json": {
+            "labels": status_labels,
+            "rows": build_status_cube(df, op_idx, status_labels),
+        },
         "grid_cube.json": build_grid_cube(df, op_idx),
     }
     for name, obj in payload.items():

@@ -82,6 +82,15 @@ const dataset: Dataset = {
     [11010, 0, 0, 0, 9, 5, 4, 8, 3],
     [11010, 1, 0, 0, 1, 1, 0, 1, 1],
   ],
+  // regionCube 와 같은 키의 상태별 분해: op0(충전기9,응답8,사용가능3) -> 충전대기3+충전중5+미확인1,
+  // op1(충전기1,응답1,사용가능1) -> 충전대기1.
+  statusCube: {
+    labels: ["충전대기", "충전중", "상태미확인"],
+    rows: [
+      [11010, 0, 0, 0, 3, 5, 1],
+      [11010, 1, 0, 0, 1, 0, 0],
+    ],
+  },
   gridCube: [
     [37500, 127000, 11, 0, 0, 1, 9],
     [37500, 127000, 11, 1, 0, 1, 1],
@@ -101,6 +110,18 @@ describe("App 빈 결과 상태", () => {
     expect(await screen.findByText("시군구 코로플레스")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "코로플레스" })).toHaveAttribute("aria-pressed", "true");
     expect(distributionMapMock).toHaveBeenCalledWith(expect.objectContaining({ view: "region" }));
+  });
+
+  it("충전기 상태 분포 표가 statusCube 를 상태별로 합산하고 '충전기' KPI와 합계가 일치한다", async () => {
+    render(<App />);
+
+    await screen.findByRole("region", { name: "충전기 상태 분포" });
+
+    expect(await screen.findByRole("row", { name: "충전대기 4" })).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: "충전중 5" })).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: "상태미확인 1" })).toBeInTheDocument();
+    // 합계(4+5+1=10)는 위 '충전기' KPI(9+1=10)와 일치해야 한다(같은 큐브 키에서 나온 값).
+    expect(screen.getAllByText("10").length).toBeGreaterThan(0);
   });
 
   it("결과를 0건으로 만든 필터를 밝히고 한 번에 복구한다", async () => {

@@ -57,7 +57,8 @@ test.describe("360px: KPI·랭킹 가독성(가로 스크롤 없음)만 확인",
     const kpiBox = await kpis.boundingBox();
     expect(kpiBox?.width, "KPI 섹션이 뷰포트 폭을 넘긴다").toBeLessThanOrEqual(360 + 1);
 
-    const table = page.getByRole("table");
+    // 개요 패널에 상태 분포 표가 추가돼(이슈 #6) 페이지에 표가 두 개다 -- 랭킹 표로 스코프한다.
+    const table = page.getByRole("region", { name: "취약 지역 순위" }).getByRole("table");
     await expect(table).toBeVisible();
   });
 });

@@ -10,6 +10,7 @@ export const KNOWN_DATA_FILES = new Set([
   "operators.json",
   "regions.json",
   "region_cube.json",
+  "status_cube.json",
   "grid_cube.json",
   "sigungu.topo.json",
 ]);

@@ -16,6 +16,14 @@ export type SpeedFilter = (typeof SPEED)[keyof typeof SPEED];
 type RegionRow = [number, number, number, number, number, number, number, number, number];
 /** [lat*1000, lng*1000, zcode, opIdx, 급속, 24시간, 충전기] */
 type GridRow = [number, number, number, number, number, number, number];
+/** [zscode, opIdx, speed, h24, ...StatusCube.labels 순서대로 충전기 수] */
+type StatusRow = number[];
+
+export interface StatusCube {
+  /** 상태 라벨. 순서가 각 StatusRow 뒤쪽 카운트 열의 순서와 같다(Python `status_labels`). */
+  labels: string[];
+  rows: StatusRow[];
+}
 
 export interface Meta {
   snapshot_date: string;
@@ -52,6 +60,7 @@ export interface Dataset {
   regions: Region[];
   sidos: Sido[];
   regionCube: RegionRow[];
+  statusCube: StatusCube;
   gridCube: GridRow[];
 }
 
@@ -78,12 +87,13 @@ export async function loadDataset(): Promise<Dataset> {
     return res.json() as Promise<T>;
   };
 
-  const [meta, metrics, operators, regionsFile, regionCube, gridCube] = await Promise.all([
+  const [meta, metrics, operators, regionsFile, regionCube, statusCube, gridCube] = await Promise.all([
     get<Meta>("meta.json"),
     get<MetricSpec[]>("metrics.json"),
     get<string[]>("operators.json"),
     get<{ regions: Region[]; sidos: Sido[] }>("regions.json"),
     get<RegionRow[]>("region_cube.json"),
+    get<StatusCube>("status_cube.json"),
     get<GridRow[]>("grid_cube.json"),
   ]);
 
@@ -94,6 +104,7 @@ export async function loadDataset(): Promise<Dataset> {
     regions: regionsFile.regions,
     sidos: regionsFile.sidos,
     regionCube,
+    statusCube,
     gridCube,
   };
 }
@@ -173,6 +184,30 @@ export function totalTerms(data: Dataset, f: Filters, totals: Map<number, Terms>
   if (ev > 0) sum.ev_count = ev;
 
   return sum;
+}
+
+/**
+ * 필터 범위의 충전기 상태 분포. 반환값은 `data.statusCube.labels`와 같은 순서의 개수
+ * 배열이다 -- 합계는 `aggregateRegions`/`totalTerms`의 `charger_count`와 항상 일치해야
+ * 한다(같은 (zscode, opIdx, speed, h24) 키에서 나온 값이라서다).
+ */
+export function aggregateStatusDistribution(data: Dataset, f: Filters): number[] {
+  const zcodes = new Set(f.zcodes);
+  const ops = new Set(f.operators);
+  const h24 = f.only24h ? H24.ONLY : H24.ALL;
+  const zOf = new Map(data.regions.map((r) => [r.zscode, r.zcode]));
+  const labelCount = data.statusCube.labels.length;
+
+  const sums = new Array<number>(labelCount).fill(0);
+  for (const row of data.statusCube.rows) {
+    const [zscode, op, speed, h] = row;
+    if (speed !== f.speed || h !== h24) continue;
+    if (ops.size && !ops.has(op)) continue;
+    if (zcodes.size && !zcodes.has(zOf.get(zscode) ?? -1)) continue;
+
+    for (let i = 0; i < labelCount; i++) sums[i] += row[4 + i];
+  }
+  return sums;
 }
 
 export interface Cell {
