@@ -1,6 +1,6 @@
 # 전기차 충전소 분포·접근성 대시보드
 
-대한민국 공공데이터를 결합해 전기차 충전 인프라의 **지리적 분포**와 **수요 대비 공급 부족 지역**을 보여주는 Streamlit 대시보드.
+대한민국 공공데이터를 결합해 전기차 충전 인프라의 **지리적 분포**와 **수요 대비 공급 부족 지역**을 보여주는 React 단일 페이지 대시보드.
 
 ## 지표
 
@@ -41,13 +41,14 @@ cp .env.example .env
 ## 실행
 
 ```bash
-python src/collect.py     # ① API 전수 수집 -> data/raw/chargers_YYYYMMDD.parquet
-python src/clean.py       # ② 정제 -> data/processed/chargers_clean.parquet
-python src/metrics.py     # ③ 지표 산출 -> data/processed/metrics_*.parquet
-streamlit run src/app.py  # ④ 대시보드
+python src/collect.py              # ① API 전수 수집 -> data/raw/chargers_YYYYMMDD.parquet
+python src/clean.py                # ② 정제 -> data/processed/chargers_clean.parquet
+python src/metrics.py              # ③ 지표 산출 -> data/processed/metrics_*.parquet
+python scripts/build_web_data.py   # ④ 화면용 희소 집계 -> prototype/public/data/*.json
+cd prototype && npm run dev        # ⑤ 대시보드 (http://localhost:5173)
 ```
 
-대시보드는 **API를 호출하지 않는다.** Parquet 스냅샷만 읽으므로 항상 빠르고 쿼터를 쓰지 않는다.
+대시보드는 **API를 호출하지 않는다.** Python 이 미리 만든 정적 집계 파일만 읽으므로 항상 빠르고 쿼터를 쓰지 않는다. 자세한 화면 구성은 아래 [React 대시보드](#react-대시보드-split-command) 절을 참고한다.
 
 ### API 쿼터 주의
 
@@ -153,15 +154,15 @@ python scripts/build_bridge.py   # data/ref/zscode_bridge.csv 생성 (27행)
 - **`delYn == 'Y'` 행이 API 응답에 섞여 온다.** 활용가이드에 "최근 삭제된 충전기 정보 제공"이라 명시돼 있다. 필터하지 않으면 충전기 수가 과대집계되는데, 에러 없이 그럴듯한 숫자가 나와 알아채기 어렵다.
 - **결측이 JSON `null`이 아니라 문자열 `"null"`로 온다.** 그대로 두면 결측 처리가 안 된다.
 - **좌표가 범위를 벗어난 행이 있다.** `clean.py`가 위도 33.0~38.7 / 경도 124.5~131.9로 검증하고 `coord_valid` 비율이 98% 미만이면 FAIL을 로그에 찍는다. 무효 좌표 충전기는 **지도에서만 빠지고 집계에는 포함**된다.
-- **지도에 52만 포인트를 개별 마커로 찍으면 브라우저가 멈춘다.** folium 마커는 피했지만, pydeck에 원본 포인트를 그대로 넘겨도 **브라우저로 가는 JSON이 40.8MB**가 되어 같은 문제가 재발한다. `display.py`의 `grid_aggregate()`가 서버에서 약 2km 격자로 미리 묶어 **8,652셀 / 0.82MB (50배 축소)** 로 보낸다.
+- **지도에 52만 포인트를 개별 마커로 찍으면 브라우저가 멈춘다.** folium 마커든 지도 레이어에 원본 포인트를 그대로 넘기든 **브라우저로 가는 JSON이 40.8MB**가 되어 같은 문제가 재발한다. `display.py`의 `grid_aggregate()`가 서버에서 약 2km 격자로 미리 묶어 **8,652셀 / 0.82MB (50배 축소)** 로 보낸다.
 - **`stat` 코드표는 필드 설명이 아니라 공통코드 3.2절이 정본이다.** `getChargerInfo` 필드 설명은 `0~5`만 적어놓았지만, 코드표에는 **`6`(예약중)과 `9`(상태미확인)** 가 더 있다. 실제 API는 `9`를 19,897기 보낸다. `.map()`으로 라벨링하면 미매칭이 NaN이 되고 `value_counts()`가 조용히 빼버려 **표 합계가 KPI와 2만기 어긋난다.** `label_stat()`이 미정의 코드도 라벨을 갖게 해서 막고, 테스트는 **실데이터가 아니라 공식 코드표**를 기준으로 검증한다 — 실데이터 기준이면 지금 0건인 `6`이 빠져도 그냥 통과하기 때문이다.
 - **세종특별자치시는 시군구가 없는 유일한 광역단체다.** 주민등록 CSV에 `세종특별자치시 (3600000000)` 시도 행 하나로만 나오는데, 충전소 API는 세종 충전기에 `zscode=36110`을 준다. 시도 행이라고 버리면 **충전기 6,474기가 M2에서 NaN이 되어 접근성 랭킹에서 통째로 사라진다.** `load_population()`이 세종만 예외 처리한다.
 - **인구 결측률은 시군구 "행 수"가 아니라 "충전기 수"로 가중해서 잰다.** 행 기준이면 세종이 통째로 빠져도 `1/230 = 0.4%`로 보여 5% 게이트를 그냥 통과한다. 충전기 기준으로는 1.25%다.
 - **필터를 반영한 컬럼과 아닌 컬럼을 한 표에 섞으면 안 된다.** 지표 정의는 `metrics.aggregate_region()` 한 곳에만 두고, 대시보드는 필터된 프레임에 그 함수를 다시 적용한다. 안 그러면 "급속만" 필터에서 급속 비율이 26%로 표시된다.
 
-## React 프로토타입 (Split Command)
+## React 대시보드 (Split Command)
 
-Streamlit 을 대체할 화면의 **폐기 가능한 한 화면 프로토타입**이다. 구조와 시각 언어를 승인받는 것이 목적이고, 코드 재사용을 전제하지 않는다 (DESIGN.md `구현 제약`).
+Streamlit 을 대체한 **제품 화면**이다. 2026-07-13 구조 승인 이후 폐기용이 아니라 운영 품질(테스트·접근성·에러 상태·성능 예산)로 작성됐다 (DESIGN.md `구현 제약`).
 
 ```bash
 python scripts/build_web_data.py   # ① 희소 집계 -> prototype/public/data/*.json (2.7MB)
@@ -191,11 +192,10 @@ npm run smoke                                # 실제 브라우저 렌더 + 1440
 ## 테스트
 
 ```bash
-python -m pytest tests/ -v          # 단위 + 통합 (113개)
-python scripts/smoke_app.py         # 대시보드 본문 실행 + 렌더 예산(5초) 확인
+python -m pytest tests/ -v          # 단위 + 통합 (파이프라인·표시 계층)
 ```
 
-스모크는 `streamlit run` 이 아니라 스크립트 본문을 직접 실행한다. Streamlit 은 정적 셸을 HTTP 200 으로 먼저 주고 본문은 웹소켓 연결 후에 돌리기 때문에, **HTTP 200 은 `app.py` 가 실제로 렌더된다는 증거가 되지 못한다.**
+화면(React) 검증은 위 [React 대시보드](#react-대시보드-split-command) 절의 `npm run smoke`(실제 브라우저 렌더 + 스크린샷)와 `npm run test:e2e`(Playwright 핵심 흐름)로 한다.
 
 ## 기준시점
 

@@ -1,13 +1,11 @@
-"""대시보드 정적 검증.
+"""표시 계층(display.py) 순수 함수 검증.
 
-streamlit 앱을 렌더하지 않고도 지킬 수 있는 두 가지 제약을 코드에서 직접 확인한다:
-  - API 를 호출하지 않는다 (Parquet 만 읽는다)
-  - 52만 포인트를 folium 개별 마커로 찍지 않는다 (브라우저가 멈춘다)
+Streamlit 대시보드는 React 로 대체되며 제거됐다. 여기서는 데이터 파이프라인이
+표시용으로 노출하는 순수 함수(격자 집계, 기준일 각주, stat 코드북, 랭킹 계산)를
+검증한다 -- UI 프레임워크와 무관하게 지켜져야 하는 계약이다.
 """
 
 from __future__ import annotations
-
-import ast
 
 import pandas as pd
 import pytest
@@ -15,51 +13,8 @@ import pytest
 import display
 from conftest import ROOT
 
-APP_PATH = ROOT / "src" / "app.py"
-
-
-def imported_modules() -> set[str]:
-    tree = ast.parse(APP_PATH.read_text(encoding="utf-8"))
-    names: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            names.update(a.name.split(".")[0] for a in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            names.add(node.module.split(".")[0])
-    return names
-
-
-class TestNoApiCalls:
-    def test_does_not_import_requests(self) -> None:
-        """대시보드는 스냅샷만 읽는다. API 호출 0회."""
-        assert "requests" not in imported_modules()
-
-    def test_does_not_import_collect(self) -> None:
-        assert "collect" not in imported_modules()
-
 
 class TestMapPerformance:
-    def test_does_not_use_folium(self) -> None:
-        """folium 개별 마커로 52만 포인트를 렌더하면 브라우저가 프리즈한다."""
-        assert "folium" not in imported_modules()
-
-    def test_uses_pydeck(self) -> None:
-        assert "pydeck" in imported_modules()
-
-    def test_uses_aggregation_layer(self) -> None:
-        source = APP_PATH.read_text(encoding="utf-8")
-        assert "ColumnLayer" in source or "HeatmapLayer" in source
-        assert "ScatterplotLayer" not in source  # 개별 점 렌더 금지
-
-    def test_grid_aggregates_before_sending_to_browser(self) -> None:
-        """52만 포인트를 그대로 pydeck 에 넘기면 브라우저로 가는 JSON 이 40MB 가 된다.
-
-        folium 마커를 피한 이유와 같은 문제라서, 서버에서 격자 집계한 뒤 넘겨야 한다.
-        """
-        source = APP_PATH.read_text(encoding="utf-8")
-        assert "grid_aggregate" in source
-        assert "data=cells" in source  # 원본 프레임이 아니라 집계 결과를 넘긴다
-
     def test_grid_aggregate_shrinks_payload(self) -> None:
         # 같은 격자에 들어가는 좌표 3개 + 떨어진 좌표 1개
         pts = pd.DataFrame({
@@ -72,17 +27,7 @@ class TestMapPerformance:
         assert cells["count"].sum() == 4  # 아무 포인트도 잃지 않는다
 
 
-class TestRequiredUiElements:
-    def test_has_four_tabs(self) -> None:
-        source = APP_PATH.read_text(encoding="utf-8")
-        for tab in ["개요", "분포 지도", "부족 지역 랭킹", "접근성 랭킹"]:
-            assert tab in source
-
-    def test_has_unit_badges(self) -> None:
-        source = APP_PATH.read_text(encoding="utf-8")
-        assert "unit_badge" in source
-        assert "시도" in source and "시군구" in source
-
+class TestBasisFootnote:
     def test_basis_footnote_names_all_three_reference_dates(self) -> None:
         """세 데이터의 기준일이 다르다. 그걸 숨기면 사용자가 지표를 오독한다."""
         note = display.basis_footnote("20260712", "2025-12-31", has_population=True)
@@ -95,26 +40,6 @@ class TestRequiredUiElements:
     def test_basis_footnote_marks_population_absent(self) -> None:
         note = display.basis_footnote("20260712", "2025-12-31", has_population=False)
         assert "N/A" in note
-
-    def test_app_renders_the_footnote(self) -> None:
-        assert "basis_footnote" in APP_PATH.read_text(encoding="utf-8")
-
-    def test_has_all_four_filters(self) -> None:
-        source = APP_PATH.read_text(encoding="utf-8")
-        assert "picked_sido" in source
-        assert "speed" in source
-        assert "picked_op" in source
-        assert "only_24h" in source
-
-    def test_accessibility_tab_falls_back_to_sido_resolution(self) -> None:
-        """시군구 인구가 없으면 접근성 탭이 꺼지는 게 아니라 시도 해상도로 내려간다.
-
-        인구 파일이 아예 없을 때만 안내를 띄운다.
-        """
-        source = APP_PATH.read_text(encoding="utf-8")
-        assert "sgg_metrics is not None" in source
-        assert '"population" in sido_metrics.columns' in source  # 시도 폴백
-        assert "jumin.mois.go.kr" in source  # 둘 다 없을 때 안내
 
 
 # 활용가이드 v1.23 공통코드 3.2절(stat). 필드 설명의 0~5 가 아니라 이 표가 정본이다.
@@ -150,47 +75,8 @@ class TestStatCodebook:
         assert "미정의(77)" in set(labeled)
 
 
-class TestNoDuplicatedMetricDefinition:
-    """M3/M5 를 app 이 따로 정의하면 정의가 두 벌이 된다(F-2).
-
-    이전 버전은 `M3_fast_ratio"] =` 문자열만 봤는데, 개요 탭이
-    `filtered["stat"].isin(["2","3"])` 형태로 리터럴 재구현을 하고 있어도 통과했다.
-    이제 **stat 코드 리터럴 자체**가 app 에 없는지 본다.
-    """
-
-    def test_app_imports_aggregate_region(self) -> None:
-        assert "metrics" in imported_modules()
-
-    def test_app_only_touches_the_stat_column_to_label_it(self) -> None:
-        """모집단 재정의(가용률 분모 등)는 반드시 stat 컬럼을 만져야 한다.
-
-        그래서 `filtered["stat"]` 의 **사용처 자체**를 단언한다. 리터럴 형태를 검사하면
-        list -> tuple 로 바꾸는 것만으로 우회된다 (실제로 그렇게 우회됐다).
-        허용되는 유일한 사용처는 display.label_stat() 의 인자다.
-        """
-        tree = ast.parse(APP_PATH.read_text(encoding="utf-8"))
-
-        def is_stat_column(node: ast.AST) -> bool:
-            return (
-                isinstance(node, ast.Subscript)
-                and isinstance(node.slice, ast.Constant)
-                and node.slice.value == "stat"
-            )
-
-        allowed = {
-            id(arg)
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "label_stat"
-            for arg in node.args
-        }
-        offenders = [n for n in ast.walk(tree) if is_stat_column(n) and id(n) not in allowed]
-
-        assert not offenders, (
-            "app 이 stat 컬럼을 label_stat 밖에서 만진다 -- 지표 정의가 두 벌이 된다. "
-            "aggregate_region 을 재사용하라."
-        )
+class TestMetricDefinition:
+    """M3/M5 정의가 데이터 파이프라인 한 곳에서만 나오는지(F-2)."""
 
     def test_national_kpi_matches_aggregate_region(self) -> None:
         """개요 KPI 와 랭킹 표가 같은 정의를 써야 한다."""
@@ -210,39 +96,7 @@ class TestNoDuplicatedMetricDefinition:
 
 
 class TestPercentDisplayContract:
-    """분수(0~1)를 printf '%%' 포맷으로 표시하면 100배가 안 돼 26.4%가 '0.3%'로 찍힌다.
-
-    Streamlit 의 printf 는 sprintf-js 라 '%%' 는 리터럴 퍼센트 기호일 뿐이다.
-    스케일링을 하는 건 'percent' 프리셋뿐이다. 데이터 계층은 분수로 통일하고
-    표시 계층만 퍼센트를 담당해야 두 스케일이 공존하지 않는다.
-    """
-
-    def test_ratio_columns_use_percent_preset_not_printf(self) -> None:
-        source = APP_PATH.read_text(encoding="utf-8")
-        assert 'format="%.1f%%"' not in source, (
-            "printf '%%' 는 100배를 하지 않는다 -- format=\"percent\" 를 써야 한다"
-        )
-
-    def test_every_ratio_column_uses_the_percent_preset(self) -> None:
-        """비율 컬럼(급속 비율/가용률)에 붙은 format 은 전부 'percent' 여야 한다."""
-        source = APP_PATH.read_text(encoding="utf-8")
-        tree = ast.parse(source)
-
-        ratio_labels = {"급속 비율", "가용률"}
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Dict):
-                continue
-            for k, v in zip(node.keys, node.values):
-                if not (isinstance(k, ast.Constant) and k.value in ratio_labels):
-                    continue
-                if not isinstance(v, ast.Call):  # NumberColumn(...) 이 아니면 라벨 맵이다
-                    continue
-                fmt = next(
-                    (kw.value.value for kw in v.keywords
-                     if kw.arg == "format" and isinstance(kw.value, ast.Constant)),
-                    None,
-                )
-                assert fmt == "percent", f"{k.value} 의 format 이 'percent' 가 아니다: {fmt!r}"
+    """분수(0~1)를 퍼센트로 표시하려면 데이터 계층이 반드시 분수여야 100배가 한 번만 된다."""
 
     def test_metrics_emit_fractions_not_percentages(self) -> None:
         """표시 계층이 100배를 하므로 데이터 계층은 반드시 0~1 이어야 한다."""
