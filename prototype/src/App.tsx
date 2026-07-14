@@ -43,6 +43,20 @@ const SPEED_LABELS: [SpeedFilter, string][] = [
   [SPEED.SLOW, "완속만"],
 ];
 
+// 지도 뷰 토글. 코로플레스는 취약도(부족)를, 격자·히트맵·밀집 원은 충전기 밀집(과밀)을 본다.
+const MAP_VIEWS: [MapView, string][] = [
+  ["region", "코로플레스"],
+  ["grid", "격자"],
+  ["heat", "히트맵"],
+  ["bubble", "밀집 원"],
+];
+const MAP_VIEW_BADGE: Record<MapView, string> = {
+  region: "시군구 코로플레스",
+  grid: "2km 격자",
+  heat: "밀도 히트맵",
+  bubble: "2km 밀집 원",
+};
+
 export default function App() {
   const [data, setData] = useState<Dataset | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -597,11 +611,9 @@ export default function App() {
               <section className={s.panel} aria-label="충전기 분포">
                 <div className={s.panelHead}>
                   <h2 className={s.panelTitle}>충전기 분포</h2>
-                  <span className={s.badge}>
-                    {view === "region" ? "시군구 코로플레스" : view === "grid" ? "2km 격자" : "밀도 히트맵"}
-                  </span>
+                  <span className={s.badge}>{MAP_VIEW_BADGE[view]}</span>
                   <div className={s.toggle} role="group" aria-label="지도 표시 방식">
-                    {(["region", "grid", "heat"] as MapView[]).map((v) => (
+                    {MAP_VIEWS.map(([v, label]) => (
                       <button
                         key={v}
                         type="button"
@@ -614,7 +626,7 @@ export default function App() {
                         }
                         onClick={() => setView(v)}
                       >
-                        {v === "region" ? "코로플레스" : v === "grid" ? "격자" : "히트맵"}
+                        {label}
                       </button>
                     ))}
                   </div>

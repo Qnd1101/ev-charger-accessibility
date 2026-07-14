@@ -16,6 +16,7 @@ import {
 
 const BASEMAP = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 const GRID_SOURCE = "cells";
+const BUBBLE_SOURCE = "cell-points";
 const REGION_SOURCE = "sigungu";
 const MIN_3D_ZOOM = 7;
 const MOBILE_QUERY = "(max-width: 767px)";
@@ -31,7 +32,7 @@ const LOCAL_FALLBACK_STYLE: maplibregl.StyleSpecification = {
   }],
 };
 
-export type MapView = "region" | "grid" | "heat";
+export type MapView = "region" | "grid" | "heat" | "bubble";
 
 interface Props {
   cells: Cell[];
@@ -66,6 +67,29 @@ function toGridGeoJson(cells: Cell[], deg: number): GeoJSON.FeatureCollection {
     })),
   };
 }
+
+/**
+ * 비례 원(밀집) 뷰용 점 피처. 격자 셀 중심에 충전기 수를 실어 원 하나로 그린다.
+ * circle 레이어는 폴리곤 꼭짓점마다 원을 그리므로, 격자 폴리곤을 재활용하지 않고
+ * 셀 중심 점을 따로 만든다.
+ */
+function toCellPoints(cells: Cell[]): GeoJSON.FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: cells.map((cell) => ({
+      type: "Feature",
+      properties: { count: cell.count },
+      geometry: { type: "Point", coordinates: [cell.lng, cell.lat] },
+    })),
+  };
+}
+
+// 원 반지름은 넓이가 아니라 반지름이 눈에 먼저 들어오므로 sqrt 에 가깝게 눌러 키운다.
+// 정확한 비교가 아니라 "어디에 압도적으로 몰렸나"를 보는 탐색용이다(아래 disclosure 문구).
+const BUBBLE_RADIUS: maplibregl.ExpressionSpecification = [
+  "interpolate", ["linear"], ["get", "count"],
+  1, 3, 10, 6, 50, 12, 200, 22, 600, 34,
+];
 
 function vulnerabilityColor(max: number): maplibregl.ExpressionSpecification {
   return [
@@ -204,19 +228,39 @@ export default function DistributionMap({
             "heatmap-opacity": 0.7,
           },
         });
+        instance!.addSource(BUBBLE_SOURCE, { type: "geojson", data: toCellPoints(cells) });
+        // 밀집 원: 색(정보 시안)은 고정하고 크기로만 충전기 수를 인코딩한다. 취약도의 앰버와
+        // 겹치지 않게 해 "부족"과 "밀집"의 색 신호를 분리한다(DESIGN.md 시각 언어).
+        instance!.addLayer({
+          id: "bubble",
+          type: "circle",
+          source: BUBBLE_SOURCE,
+          layout: { visibility: "none" },
+          paint: {
+            "circle-radius": BUBBLE_RADIUS,
+            "circle-color": "#31d7e8",
+            "circle-opacity": 0.5,
+            "circle-stroke-color": "#07111f",
+            "circle-stroke-width": 1,
+          },
+        });
         const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
-        instance!.on("mousemove", "grid", (event) => {
+        const showCount = (event: maplibregl.MapLayerMouseEvent) => {
           const feature = event.features?.[0];
           if (!feature) return;
           instance!.getCanvas().style.cursor = "pointer";
           popup.setLngLat(event.lngLat)
             .setText(`${Number(feature.properties.count).toLocaleString("ko-KR")}기 (2km 셀)`)
             .addTo(instance!);
-        });
-        instance!.on("mouseleave", "grid", () => {
+        };
+        const hideCount = () => {
           instance!.getCanvas().style.cursor = "";
           popup.remove();
-        });
+        };
+        for (const layer of ["grid", "bubble"]) {
+          instance!.on("mousemove", layer, showCount);
+          instance!.on("mouseleave", layer, hideCount);
+        }
         setMapLoaded(true);
       });
       map.current = instance;
@@ -237,6 +281,7 @@ export default function DistributionMap({
     const instance = map.current;
     if (!instance || !mapLoaded) return;
     (instance.getSource(GRID_SOURCE) as maplibregl.GeoJSONSource).setData(toGridGeoJson(cells, gridDeg));
+    (instance.getSource(BUBBLE_SOURCE) as maplibregl.GeoJSONSource).setData(toCellPoints(cells));
     setIs3d(false);
   }, [cells, gridDeg, mapLoaded]);
 
@@ -321,25 +366,33 @@ export default function DistributionMap({
     const active3d = is3d && canUse3d;
     if (is3d && !canUse3d) setIs3d(false);
     const fallback = basemapMissing || boundaryState !== "ready";
-    setVisibility(instance, "grid", fallback || view === "grid");
+    setVisibility(instance, "grid", (fallback && view !== "bubble") || view === "grid");
     setVisibility(instance, "heat", !fallback && view === "heat");
-    setVisibility(instance, "choropleth", !fallback && !active3d);
-    setVisibility(instance, "vulnerability-3d", !fallback && active3d);
+    // 밀집 원은 격자 셀 수만 쓰고 경계·배경지도에 의존하지 않으므로 fallback 중에도 표시한다.
+    setVisibility(instance, "bubble", view === "bubble");
+    setVisibility(instance, "choropleth", !fallback && !active3d && view !== "bubble");
+    setVisibility(instance, "vulnerability-3d", !fallback && active3d && view !== "bubble");
     instance.easeTo({ bearing: 0, pitch: active3d ? 45 : 0, duration: motionReduced ? 0 : 450 });
   }, [basemapMissing, boundaryState, canUse3d, is3d, mapLoaded, motionReduced, view]);
 
-  const fallbackMessage = basemapMissing
-    ? "배경지도를 불러오지 못해 2km 격자로 표시합니다."
-    : boundaryState === "loading"
-      ? "시군구 경계를 불러오는 중입니다."
-      : boundaryState === "missing"
-        ? "시군구 경계 파일을 읽지 못해 2km 격자로 표시합니다."
-        : "유효한 지역별 지도 값 또는 정확한 경계 코드 조인이 없어 2km 격자로 표시합니다.";
+  // 밀집 원 뷰는 시군구 경계를 쓰지 않으므로 경계 관련 강등 문구를 내지 않는다.
+  // 배경지도만 없을 때는 원 위치의 지리적 맥락이 빠진다는 사실만 알린다.
+  const bubbleBanner = view === "bubble" && basemapMissing;
+  const fallbackMessage = view === "bubble"
+    ? "배경지도를 불러오지 못했습니다. 밀집 원만 표시합니다."
+    : basemapMissing
+      ? "배경지도를 불러오지 못해 2km 격자로 표시합니다."
+      : boundaryState === "loading"
+        ? "시군구 경계를 불러오는 중입니다."
+        : boundaryState === "missing"
+          ? "시군구 경계 파일을 읽지 못해 2km 격자로 표시합니다."
+          : "유효한 지역별 지도 값 또는 정확한 경계 코드 조인이 없어 2km 격자로 표시합니다.";
+  const showBanner = view === "bubble" ? bubbleBanner : basemapMissing || boundaryState !== "ready";
 
   return (
     <div className={s.root}>
       <div ref={box} className={s.map} />
-      {(basemapMissing || boundaryState !== "ready") && <p role="status" className={s.status}>{fallbackMessage}</p>}
+      {showBanner && <p role="status" className={s.status}>{fallbackMessage}</p>}
       <div className={s.controls}>
         {/* 비활성 이유는 srOnly 라 스크린리더에만 닿는다. title 로 마우스 사용자에게도 노출한다. */}
         <button
