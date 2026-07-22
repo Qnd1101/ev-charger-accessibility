@@ -376,7 +376,7 @@ export default function App() {
 
   return (
     <div className={s.shell}>
-      <aside className={s.rail}>
+      <aside className={s.rail} id="rail">
         <h2 className={s.railTitle}>CONTROL DECK</h2>
         <p className={s.railSub}>필터를 바꾸면 KPI·지도·순위가 함께 갱신됩니다.</p>
 
@@ -516,6 +516,9 @@ export default function App() {
 
         <div className={s.scope}>
           <span className={s.scopeLabel}>ACTIVE SCOPE</span>
+          <a href="#rail" className={s.jumpToFilters}>
+            필터 편집
+          </a>
           {chips.length === 0 ? (
             <span className={s.chip}>전국 · 전체 운영기관</span>
           ) : (

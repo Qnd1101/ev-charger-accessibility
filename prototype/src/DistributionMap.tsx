@@ -409,21 +409,24 @@ export default function DistributionMap({
       <div ref={box} className={s.map} />
       {showBanner && <p role="status" className={s.status}>{fallbackMessage}</p>}
       <div className={s.controls}>
-        {/* 비활성 이유는 srOnly 라 스크린리더에만 닿는다. title 로 마우스 사용자에게도 노출한다. */}
+        {/* 비활성 이유는 항상 보이는 텍스트로 노출한다 -- title 은 호버 없는 터치 기기에서 닿지 않는다. */}
         <button
           type="button"
           className={s.modeButton}
           aria-pressed={is3d}
           aria-disabled={!canUse3d}
           aria-describedby={!canUse3d ? THREE_D_REASON_ID : undefined}
-          title={!canUse3d ? threeDimensionalReason : undefined}
           onClick={() => {
             if (canUse3d) setIs3d((value) => !value);
           }}
         >
           3D 취약도
         </button>
-        {!canUse3d && <p id={THREE_D_REASON_ID} className={s.srOnly}>{threeDimensionalReason}</p>}
+        {!canUse3d && (
+          <p id={THREE_D_REASON_ID} role="note" className={s.disclosure}>
+            {threeDimensionalReason}
+          </p>
+        )}
         {is3d && (
           <p role="note" className={s.disclosure}>
             높이는 탐색용입니다. 정확한 비교는 순위 표를 사용하세요.

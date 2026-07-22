@@ -296,6 +296,11 @@
   color: #fff;
 }
 
+/* 데스크톱에서는 필터 레일이 항상 보이므로 숨긴다. 모바일 전용 점프 링크(아래 미디어쿼리에서 노출). */
+.jumpToFilters {
+  display: none;
+}
+
 .kpis {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -712,6 +717,21 @@ td.num {
   .scope {
     order: -1;
     margin-top: 0;
+  }
+
+  /* 필터 레일이 페이지 맨 아래로 밀리므로, 스크롤 없이 바로 이동할 수 있는 링크를 노출한다. */
+  .jumpToFilters {
+    display: inline-flex;
+    align-items: center;
+    margin-left: auto;
+    padding: 4px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--ivory-2);
+    color: var(--navy);
+    font-size: 12.5px;
+    text-decoration: none;
+    min-height: 32px;
   }
 
   .kpis {
