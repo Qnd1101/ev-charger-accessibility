@@ -1,4 +1,4 @@
-/* Split Command: 어두운 고정 필터 레일 + 밝은 분석 캔버스 */
+/* Toss-inspired analysis workspace: quiet utility rail + bright data canvas. */
 .shell {
   display: grid;
   grid-template-columns: var(--rail-w) 1fr;
@@ -6,7 +6,7 @@
 }
 
 .rail {
-  background: var(--navy);
+  background: var(--ivory-2);
   color: var(--rail-ink);
   padding: var(--s5) var(--s4);
   border-right: 1px solid var(--line-rail);
@@ -18,14 +18,14 @@
 
 .railTitle {
   font-family: var(--mono);
-  font-size: 13px;
-  letter-spacing: 0.18em;
+  font-size: 15px;
+  letter-spacing: -0.02em;
   color: var(--lime);
   margin: 0 0 var(--s1);
 }
 
 .railSub {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--rail-ink-2);
   margin: 0 0 var(--s5);
   line-height: 1.5;
@@ -37,10 +37,10 @@
 
 .field > legend,
 .fieldLabel {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  text-transform: none;
   color: var(--rail-ink-2);
   margin-bottom: var(--s2);
   display: block;
@@ -55,9 +55,9 @@
 .segment {
   display: flex;
   gap: var(--s1);
-  background: var(--navy-2);
+  background: var(--ivory);
   border: 1px solid var(--line-rail);
-  border-radius: var(--r1);
+  border-radius: 10px;
   padding: var(--s1);
 }
 
@@ -79,12 +79,12 @@
 }
 
 .segment input:checked + span {
-  color: var(--navy);
+  color: var(--ivory-2);
 }
 
 .segment label:has(input:checked) {
   background: var(--lime);
-  color: var(--navy);
+  color: var(--ivory-2);
   font-weight: 600;
 }
 
@@ -96,7 +96,7 @@
 .search,
 .select {
   width: 100%;
-  background: var(--navy-2);
+  background: var(--ivory-2);
   border: 1px solid var(--line-rail);
   border-radius: var(--r1);
   color: var(--rail-ink);
@@ -113,7 +113,7 @@
   overflow-y: auto;
   border: 1px solid var(--line-rail);
   border-radius: var(--r1);
-  background: var(--navy-2);
+  background: var(--ivory-2);
   padding: var(--s2);
   margin-top: var(--s2);
   /* 스크롤 경계의 하드 컷을 부드럽게: 상·하 10px 페이드(순수 장식). */
@@ -167,10 +167,10 @@
 
 .quickBtn,
 .reset {
-  background: transparent;
+  background: var(--ivory-2);
   border: 1px solid var(--line-rail);
   color: var(--rail-ink-2);
-  border-radius: 999px;
+  border-radius: 7px;
   padding: 4px 10px;
   font: inherit;
   font-size: 12px;
@@ -180,7 +180,8 @@
 .quickBtn:hover,
 .reset:hover {
   border-color: var(--lime);
-  color: var(--lime);
+  color: var(--cyan);
+  background: #e8f3ff;
 }
 
 .railResult {
@@ -196,7 +197,7 @@
   font-family: var(--mono);
   font-size: 26px;
   font-weight: 700;
-  color: var(--lime);
+  color: var(--cyan);
 }
 
 .railResultLabel {
@@ -206,7 +207,7 @@
 
 /* ---------------------------------------------------------------- 분석 캔버스 */
 .canvas {
-  padding: var(--s6) var(--s6) var(--s7);
+  padding: 40px var(--s6) var(--s7);
   max-width: var(--max-w);
   width: 100%;
 }
@@ -214,16 +215,16 @@
 .kicker {
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0.22em;
-  color: var(--ink-2);
-  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  color: var(--cyan);
+  text-transform: none;
 }
 
 .h1 {
   font-family: var(--mono);
-  font-size: 30px;
+  font-size: 32px;
   margin: var(--s2) 0 var(--s3);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.04em;
 }
 
 .basis {
@@ -235,7 +236,7 @@
   color: var(--ink-2);
   background: var(--ivory-2);
   border: 1px solid var(--line);
-  border-radius: var(--r1);
+  border-radius: 10px;
   padding: var(--s3) var(--s4);
 }
 
@@ -248,7 +249,7 @@
   margin-left: auto;
   font-size: 11.5px;
   color: var(--ink-2);
-  border-left: 2px solid var(--cyan);
+  border-left: 2px solid var(--lime);
   padding-left: var(--s2);
 }
 
@@ -273,7 +274,7 @@
   gap: 6px;
   background: var(--ivory-2);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 16px;
   padding: 4px 6px 4px 12px;
   font-size: 12.5px;
 }
@@ -304,7 +305,7 @@
 .kpi {
   background: var(--ivory-2);
   border: 1px solid var(--line);
-  border-radius: var(--r2);
+  border-radius: 16px;
   padding: var(--s4) var(--s4) var(--s3);
 }
 
@@ -318,7 +319,7 @@
 
 .kpiValue {
   font-family: var(--mono);
-  font-size: 30px;
+  font-size: 32px;
   font-weight: 700;
   margin: var(--s2) 0 2px;
   letter-spacing: -0.02em;
@@ -347,7 +348,7 @@
 .panel {
   background: var(--ivory-2);
   border: 1px solid var(--line);
-  border-radius: var(--r2);
+  border-radius: 16px;
   padding: var(--s4);
   min-width: 0;
 }
@@ -373,9 +374,11 @@
   text-transform: uppercase;
   background: var(--ivory);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 8px;
+  background: #e8f3ff;
+  border-color: transparent;
+  color: var(--cyan);
   padding: 3px 8px;
-  color: var(--ink-2);
 }
 
 .toggle {
@@ -402,7 +405,7 @@
   height: 420px;
   border-radius: var(--r1);
   overflow: hidden;
-  background: var(--navy-2);
+  background: var(--ivory);
 }
 
 .caveat {
@@ -410,8 +413,39 @@
   font-size: 11.5px;
   color: var(--ink-2);
   line-height: 1.5;
-  border-left: 2px solid var(--amber);
+  border-left: 2px solid var(--lime);
   padding-left: var(--s2);
+}
+
+.supplySummary {
+  margin-top: var(--s3);
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r1);
+  background: #f8fbff;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.supplySummary p {
+  margin: 0 0 var(--s2);
+}
+
+.supplySummary ol {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.supplySummary li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+.supplySummary b {
+  color: var(--ink);
 }
 
 .chart {
@@ -523,7 +557,7 @@ td.num {
   min-height: 36px;
   flex: 0 0 auto;
   border: 1px solid var(--ink);
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 0 var(--s3);
   background: transparent;
   color: var(--ink);
@@ -533,7 +567,8 @@ td.num {
 }
 
 .recoveryBtn:hover {
-  background: var(--ink);
+  background: var(--lime);
+  border-color: var(--lime);
   color: var(--ivory-2);
 }
 
@@ -548,7 +583,7 @@ td.num {
 .errorRetry {
   min-height: 44px;
   border: 1px solid var(--red);
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 0 var(--s4);
   background: transparent;
   color: var(--ink);

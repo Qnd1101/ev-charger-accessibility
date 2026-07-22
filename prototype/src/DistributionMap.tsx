@@ -32,7 +32,7 @@ const LOCAL_FALLBACK_STYLE: maplibregl.StyleSpecification = {
   }],
 };
 
-export type MapView = "region" | "grid" | "heat" | "bubble";
+export type MapView = "region" | "supply" | "grid" | "heat" | "bubble";
 
 interface Props {
   cells: Cell[];
@@ -40,6 +40,8 @@ interface Props {
   gridDeg: number;
   /** Python 지표 산출물에서 계산된 표시 값과 취약도. UI는 둘을 재계산하지 않는다. */
   regionValues?: BoundaryValue[];
+  /** 시군구별 충전기 수. 부족도와 다른, 공급 분포 전용 값이다. */
+  supplyValues?: BoundaryValue[];
   /** 무필터 전국 취약도의 고정 최댓값. 필터가 바뀌어도 같은 값을 전달해야 한다. */
   fixedVulnerabilityMax?: number;
   boundaryUrl?: string;
@@ -109,6 +111,13 @@ function vulnerabilityHeight(max: number): maplibregl.ExpressionSpecification {
   ];
 }
 
+function supplyColor(max: number): maplibregl.ExpressionSpecification {
+  return [
+    "interpolate", ["linear"], ["get", "value"],
+    0, "#e8f3ff", max, "#3182f6",
+  ];
+}
+
 function setVisibility(map: MapLibreMap, id: string, visible: boolean) {
   if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
 }
@@ -118,6 +127,7 @@ export default function DistributionMap({
   view,
   gridDeg,
   regionValues = [],
+  supplyValues = [],
   fixedVulnerabilityMax,
   boundaryUrl = `${import.meta.env.BASE_URL}data/sigungu.topo.json`,
 }: Props) {
@@ -146,7 +156,12 @@ export default function DistributionMap({
     zoom,
     minZoom: MIN_3D_ZOOM,
   });
-  const canUse3d = availability.allowed;
+  const canUse3d = view === "region" && availability.allowed;
+  const threeDimensionalReason = view !== "region"
+    ? "3D는 부족도 보기에서만 제공합니다. 지역별 충전기 수는 색과 목록으로 비교하세요."
+    : availability.reason;
+  const activeBoundaryValues = view === "supply" ? supplyValues : regionValues;
+  const supplyMax = Math.max(1, ...supplyValues.map(({ value }) => value ?? 0));
 
   useEffect(() => {
     const reduced = window.matchMedia(MOTION_QUERY);
@@ -343,22 +358,22 @@ export default function DistributionMap({
     const instance = map.current;
     const collection = boundaries.current;
     if (!instance || !geometryLoaded || !collection) return;
-    const contract = inspectBoundaryJoin(collection, regionValues);
-    const usable = hasUsableBoundaryValues(regionValues) && boundaryJoinIsExact(contract);
+    const contract = inspectBoundaryJoin(collection, activeBoundaryValues);
+    const usable = hasUsableBoundaryValues(activeBoundaryValues) && boundaryJoinIsExact(contract);
     (instance.getSource(REGION_SOURCE) as maplibregl.GeoJSONSource).setData(
-      joinBoundaryValues(collection, usable ? regionValues : []),
+      joinBoundaryValues(collection, usable ? activeBoundaryValues : []),
     );
     setBoundaryState(usable ? "ready" : "unconnected");
     setIs3d(false);
-  }, [geometryLoaded, regionValues]);
+  }, [activeBoundaryValues, geometryLoaded]);
 
   useEffect(() => {
     const instance = map.current;
     if (!instance || !geometryLoaded || vulnerabilityMax === null) return;
-    instance.setPaintProperty("choropleth", "fill-color", vulnerabilityColor(vulnerabilityMax));
+    instance.setPaintProperty("choropleth", "fill-color", view === "supply" ? supplyColor(supplyMax) : vulnerabilityColor(vulnerabilityMax));
     instance.setPaintProperty("vulnerability-3d", "fill-extrusion-color", vulnerabilityColor(vulnerabilityMax));
     instance.setPaintProperty("vulnerability-3d", "fill-extrusion-height", vulnerabilityHeight(vulnerabilityMax));
-  }, [geometryLoaded, vulnerabilityMax]);
+  }, [geometryLoaded, supplyMax, view, vulnerabilityMax]);
 
   useEffect(() => {
     const instance = map.current;
@@ -371,7 +386,7 @@ export default function DistributionMap({
     // 밀집 원은 격자 셀 수만 쓰고 경계·배경지도에 의존하지 않으므로 fallback 중에도 표시한다.
     setVisibility(instance, "bubble", view === "bubble");
     setVisibility(instance, "choropleth", !fallback && !active3d && view !== "bubble");
-    setVisibility(instance, "vulnerability-3d", !fallback && active3d && view !== "bubble");
+    setVisibility(instance, "vulnerability-3d", !fallback && active3d);
     instance.easeTo({ bearing: 0, pitch: active3d ? 45 : 0, duration: motionReduced ? 0 : 450 });
   }, [basemapMissing, boundaryState, canUse3d, is3d, mapLoaded, motionReduced, view]);
 
@@ -401,14 +416,14 @@ export default function DistributionMap({
           aria-pressed={is3d}
           aria-disabled={!canUse3d}
           aria-describedby={!canUse3d ? THREE_D_REASON_ID : undefined}
-          title={!canUse3d ? availability.reason : undefined}
+          title={!canUse3d ? threeDimensionalReason : undefined}
           onClick={() => {
             if (canUse3d) setIs3d((value) => !value);
           }}
         >
           3D 취약도
         </button>
-        {!canUse3d && <p id={THREE_D_REASON_ID} className={s.srOnly}>{availability.reason}</p>}
+        {!canUse3d && <p id={THREE_D_REASON_ID} className={s.srOnly}>{threeDimensionalReason}</p>}
         {is3d && (
           <p role="note" className={s.disclosure}>
             높이는 탐색용입니다. 정확한 비교는 순위 표를 사용하세요.

@@ -50,11 +50,11 @@ export default function RankingChart({ rows, unit }: Props) {
           axisPointer: { type: "shadow" },
           valueFormatter: (v: number) => `${v.toFixed(1)} ${unit}`,
         },
-        xAxis: { type: "value", axisLabel: { color: "#4a5563" }, splitLine: { lineStyle: { color: "#e6e8e2" } } },
+        xAxis: { type: "value", axisLabel: { color: "#4e5968" }, splitLine: { lineStyle: { color: "#e5e8eb" } } },
         yAxis: {
           type: "category",
           data: data.map((r) => (r.absent ? `${r.name} (미진출)` : r.name)),
-          axisLabel: { color: "#10151b", fontSize: 11 },
+          axisLabel: { color: "#191f28", fontSize: 11 },
           axisTick: { show: false },
         },
         series: [
@@ -63,14 +63,14 @@ export default function RankingChart({ rows, unit }: Props) {
             data: data.map((r) => ({
               value: r.value ?? 0,
               // 미진출(선택 기관 0개)은 국가 인프라 부족과 다른 상태다. 색과 라벨을 분리한다.
-              itemStyle: { color: r.absent ? "#ff6b6b" : "#ffbd59", borderRadius: [0, 4, 4, 0] },
+              itemStyle: { color: r.absent ? "#e42939" : "#3182f6", borderRadius: [0, 6, 6, 0] },
             })),
             label: {
               show: true,
               position: "right",
               formatter: ({ dataIndex }: { dataIndex: number }) =>
                 data[dataIndex].absent ? "미진출" : (data[dataIndex].value ?? 0).toFixed(1),
-              color: "#4a5563",
+              color: "#4e5968",
               fontSize: 11,
             },
           },

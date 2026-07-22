@@ -17,8 +17,8 @@
   margin: 0;
   padding: 7px 10px;
   border-radius: var(--s1);
-  color: var(--rail-ink);
-  background: rgb(7 17 31 / 88%);
+  color: var(--ivory-2);
+  background: rgb(25 31 40 / 88%);
   font-size: 12px;
 }
 
@@ -32,10 +32,10 @@
 
 .modeButton {
   padding: 6px 9px;
-  border: 1px solid rgb(7 17 31 / 35%);
-  border-radius: var(--s1);
-  color: var(--navy);
-  background: var(--ivory);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink-2);
+  background: var(--ivory-2);
   font: inherit;
   font-size: 12px;
   cursor: pointer;
@@ -50,9 +50,9 @@
   width: 220px;
   margin: 0;
   padding: 7px 9px;
-  border-radius: var(--s1);
-  color: var(--navy);
-  background: #ffebbd;
+  border-radius: 7px;
+  color: #8b4b00;
+  background: #fff5e6;
   font-size: 12px;
 }
 

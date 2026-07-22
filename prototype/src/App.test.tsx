@@ -112,6 +112,16 @@ describe("App 빈 결과 상태", () => {
     expect(distributionMapMock).toHaveBeenCalledWith(expect.objectContaining({ view: "region" }));
   });
 
+  it("지역별 충전기 수 보기에서 많이 분포한 시군구 목록을 보여준다", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "지역별 충전기 수" }));
+
+    expect(screen.getByRole("region", { name: "충전기가 많이 분포한 지역" })).toHaveTextContent("서울 종로구");
+    expect(distributionMapMock).toHaveBeenLastCalledWith(expect.objectContaining({ view: "supply" }));
+  });
+
   it("충전기 상태 분포 표가 statusCube 를 상태별로 합산하고 '충전기' KPI와 합계가 일치한다", async () => {
     render(<App />);
 
@@ -177,20 +187,20 @@ describe("App 빈 결과 상태", () => {
     expect(await screen.findByRole("heading", { name: "대한민국 충전 인프라 관제" })).toBeInTheDocument();
   });
 
-  it("M1/M2 토글: M1을 선택하면 해상도가 시도로, 분모가 EV 등록대수로 바뀐다", async () => {
+  it("비교 기준 토글: 전기차 기준을 선택하면 시도 해상도로 바뀐다", async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    expect(await screen.findByText("시군구 · M2")).toBeInTheDocument();
+    expect(await screen.findByText("시군구 기준 · 인구 10만 명당")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "M1" }));
+    await user.click(screen.getByRole("button", { name: /전기차 기준/ }));
 
-    expect(await screen.findByText("시도 · M1")).toBeInTheDocument();
+    expect(await screen.findByText("시도 기준 · 전기차 1,000대당")).toBeInTheDocument();
     // 서울특별시 시도 합계 충전기 10기(9+1), EV 등록 100대 -> 10 / (100/1000) = 100.0.
     expect(screen.getByRole("row", { name: /서울특별시.*100\.0/ })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "M2" }));
-    expect(await screen.findByText("시군구 · M2")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /인구 기준/ }));
+    expect(await screen.findByText("시군구 기준 · 인구 10만 명당")).toBeInTheDocument();
   });
 
   it("로드 성공 전체 화면에 색 대비 외 axe 위반이 없다", async () => {

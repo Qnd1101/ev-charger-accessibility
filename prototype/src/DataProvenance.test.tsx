@@ -14,13 +14,13 @@ describe("DataProvenance", () => {
       "https://www.data.go.kr/data/15076352/openapi.do",
     );
     expect(screen.getByText(/공공누리 제1유형 \(출처표시\)/)).toBeInTheDocument();
-    expect(screen.getByText(/M1·M2·M3·M4·M5가 전부 이 데이터에서 나온다/)).toBeInTheDocument();
-    expect(screen.getByText(/M1\(충전기\/EV 1,000대\)의 분모다/)).toBeInTheDocument();
+    expect(screen.getByText(/전기차 기준·인구 기준·급속\s*비율·충전소 밀도·현재 비어 있음의 분자는 모두 이 데이터에서 나온다/)).toBeInTheDocument();
+    expect(screen.getByText(/전기차 기준\(M1, 충전기\/EV 1,000대\)의 분모다/)).toBeInTheDocument();
     const mois = screen.getByRole("link", { name: /행정안전부 주민등록 인구통계/ }).closest("li");
     expect(mois).not.toBeNull();
     expect(within(mois!).queryByText("이용 조건")).not.toBeInTheDocument();
     expect(within(mois!).queryByText(/확인되지 않음|제1유형|기준일|제공/)).not.toBeInTheDocument();
-    expect(screen.getByText(/대한민국 공공데이터를 결합해 전기차 충전 인프라의 지리적 분포와 수요 대비 공급 격차를 보여준다/)).toBeInTheDocument();
+    expect(screen.getByText(/대한민국 공공데이터를 결합해 전기차 충전 인프라의 지리적 분포와 수요 대비 공급 격차를 살펴보는 대학 과제용 분석 대시보드/)).toBeInTheDocument();
     expect(screen.getByText(/배경지도 타일\(CARTO Positron\)은 데이터 출처가 아니라 외부 통신 경계다/)).toBeInTheDocument();
   });
 

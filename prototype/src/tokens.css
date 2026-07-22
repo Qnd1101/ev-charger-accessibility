@@ -1,28 +1,25 @@
 @import "@fontsource/ibm-plex-sans-kr/400.css";
 @import "@fontsource/ibm-plex-sans-kr/600.css";
-@import "@fontsource/space-grotesk/400.css";
-@import "@fontsource/space-grotesk/600.css";
-@import "@fontsource/space-grotesk/700.css";
 
 /* 색상·간격·타이포그래피의 유일한 원본(DESIGN.md 토큰 소유권). */
 :root {
-  --navy: #07111f;
-  --navy-2: #0d1b2a;
-  --navy-3: #16293c;
-  --ivory: #f5f6f2;
+  --navy: #191f28;
+  --navy-2: #333d4b;
+  --navy-3: #4e5968;
+  --ivory: #f2f4f6;
   --ivory-2: #ffffff;
-  --ink: #10151b;
-  --ink-2: #4a5563;
-  --rail-ink: #f3f7fa;
-  --rail-ink-2: #93a3b4;
+  --ink: #191f28;
+  --ink-2: #4e5968;
+  --rail-ink: #191f28;
+  --rail-ink-2: #6b7684;
 
-  --lime: #c7ff3d; /* 선택 */
-  --cyan: #31d7e8; /* 정보 */
-  --amber: #ffbd59; /* 취약 */
-  --red: #ff6b6b; /* 오류 */
+  --lime: #3182f6; /* 선택·주요 액션 */
+  --cyan: #1b64da; /* 정보 */
+  --amber: #e8901f; /* 취약 */
+  --red: #e42939; /* 오류 */
 
-  --line: #d8dcd4;
-  --line-rail: #22344a;
+  --line: #e5e8eb;
+  --line-rail: #e5e8eb;
 
   --s1: 4px;
   --s2: 8px;
@@ -32,14 +29,14 @@
   --s6: 32px;
   --s7: 48px;
 
-  --r1: 10px;
+  --r1: 8px;
   --r2: 16px;
 
   --rail-w: 280px;
   --max-w: 1440px;
 
-  --mono: "Space Grotesk", ui-monospace, "SF Mono", Menlo, monospace;
-  --sans: "IBM Plex Sans KR", system-ui, -apple-system, "Malgun Gothic", sans-serif;
+  --mono: "Toss Product Sans", "IBM Plex Sans KR", system-ui, -apple-system, "Malgun Gothic", sans-serif;
+  --sans: "Toss Product Sans", "IBM Plex Sans KR", system-ui, -apple-system, "Malgun Gothic", sans-serif;
 }
 
 * {
@@ -54,7 +51,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* 초점은 색만으로 전달하지 않는다. 어디서나 2px 라임 외곽선. */
+/* 키보드 초점은 토스 블루 테두리와 오프셋으로 명확히 보인다. */
 :focus-visible {
   outline: 2px solid var(--lime);
   outline-offset: 2px;

@@ -1,5 +1,5 @@
 .panel {
-  border-top: 1px solid var(--line-rail);
+  border-top: 1px solid var(--line);
   margin-top: var(--s5);
   padding-top: var(--s4);
   color: var(--rail-ink-2);
@@ -29,7 +29,7 @@
 }
 
 .source {
-  border-left: 2px solid var(--cyan);
+  border-left: 2px solid var(--lime);
   padding-left: var(--s3);
   margin-bottom: var(--s4);
 }
@@ -43,7 +43,7 @@
 }
 
 .external {
-  color: var(--cyan);
+  color: var(--lime);
   margin-left: 4px;
 }
 
@@ -74,7 +74,7 @@
 }
 
 .network {
-  border: 1px solid var(--line-rail);
+  border: 1px solid var(--line);
   border-radius: var(--r1);
   padding: var(--s2) var(--s3);
 }

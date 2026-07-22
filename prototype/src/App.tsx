@@ -46,16 +46,32 @@ const SPEED_LABELS: [SpeedFilter, string][] = [
 // 지도 뷰 토글. 코로플레스는 취약도(부족)를, 격자·히트맵·밀집 원은 충전기 밀집(과밀)을 본다.
 const MAP_VIEWS: [MapView, string][] = [
   ["region", "코로플레스"],
+  ["supply", "지역별 충전기 수"],
   ["grid", "격자"],
   ["heat", "히트맵"],
   ["bubble", "밀집 원"],
 ];
 const MAP_VIEW_BADGE: Record<MapView, string> = {
   region: "시군구 코로플레스",
+  supply: "시군구별 충전기 수",
   grid: "2km 격자",
   heat: "밀도 히트맵",
   bubble: "2km 밀집 원",
 };
+
+/** 화면에서는 내부 지표 코드보다 사용자가 비교하는 기준을 먼저 말한다. 공식·값은 metrics.json을 그대로 쓴다. */
+const RANK_METRIC_COPY = {
+  M1: {
+    button: "전기차 기준",
+    short: "전기차 1,000대당",
+    description: "전기차 수에 비해 충전기가 얼마나 있는지 봅니다.",
+  },
+  M2: {
+    button: "인구 기준",
+    short: "인구 10만 명당",
+    description: "지역 인구에 비해 충전기가 얼마나 있는지 봅니다.",
+  },
+} as const;
 
 export default function App() {
   const [data, setData] = useState<Dataset | null>(null);
@@ -213,6 +229,27 @@ export default function App() {
       fixedVulnerabilityMax,
     };
   }, [data, nationalTotals, totals]);
+
+  /** 충전기가 많이 분포한 시군구를 읽는 지도·목록용 값. 부족도(M2)와 혼합하지 않는다. */
+  const supplyByRegion = useMemo(() => {
+    if (!data || !totals) return [];
+    return data.regions.map((region) => ({
+      zscode: region.zscode,
+      value: totals.get(region.zscode)?.charger_count ?? 0,
+      vulnerability: totals.get(region.zscode)?.charger_count ?? 0,
+    }));
+  }, [data, totals]);
+
+  const topSupplyRegions = useMemo(() => {
+    if (!data || !totals) return [];
+    return data.regions
+      .map((region) => ({
+        name: `${shortSido(region.sido)} ${region.sigungu}`,
+        count: totals.get(region.zscode)?.charger_count ?? 0,
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [data, totals]);
 
   if (error) {
     return (
@@ -565,7 +602,7 @@ export default function App() {
               {ratioKpis.map((spec) => (
                 <div key={spec.id} className={s.kpi}>
                   <div className={s.kpiLabel}>
-                    {spec.label} ({spec.id})
+                    {spec.label}
                   </div>
                   <div className={s.kpiValue} title={spec.definition}>
                     {format(spec, evaluate(spec, scopeTerms))}
@@ -637,6 +674,7 @@ export default function App() {
                     view={view}
                     gridDeg={meta.grid_deg}
                     regionValues={mapMetric.regionValues}
+                    supplyValues={supplyByRegion}
                     fixedVulnerabilityMax={mapMetric.fixedVulnerabilityMax}
                   />
                 </div>
@@ -647,6 +685,16 @@ export default function App() {
                     <> 지역에 배치할 수 없는 충전기 {num(unplacedChargers)}기도 지역·지도 집계에서 제외됩니다.</>
                   )}
                 </p>
+                {view === "supply" && (
+                  <section className={s.supplySummary} aria-label="충전기가 많이 분포한 지역">
+                    <p><b>색이 진할수록 충전기 수가 많은 지역</b>입니다. 아래는 현재 필터 기준 상위 5개 시군구입니다.</p>
+                    <ol>
+                      {topSupplyRegions.map((region) => (
+                        <li key={region.name}><span>{region.name}</span><b>{num(region.count)}기</b></li>
+                      ))}
+                    </ol>
+                  </section>
+                )}
                 {cells.length === 0 && (
                   <p className={s.kpiNote}>필터 조건에 맞는 충전기 중 지도에 표시할 수 있는 좌표가 없습니다.</p>
                 )}
@@ -657,7 +705,7 @@ export default function App() {
                   <h2 className={s.panelTitle}>
                     {opFiltered ? "선택 운영기관 공급 현황" : "충전 인프라 부족 지역"}
                   </h2>
-                  <span className={s.badge}>{rankResolutionLabel} · {rankMetricId}</span>
+                  <span className={s.badge}>{rankResolutionLabel} 기준 · {RANK_METRIC_COPY[rankMetricId].short}</span>
                   <div className={s.toggle} role="group" aria-label="랭킹 지표 선택">
                     {(["M1", "M2"] as const).map((id) => (
                       <button
@@ -671,8 +719,9 @@ export default function App() {
                             : undefined
                         }
                         onClick={() => setRankMetricId(id)}
+                        aria-label={`${RANK_METRIC_COPY[id].button}: ${RANK_METRIC_COPY[id].description}`}
                       >
-                        {id}
+                        {RANK_METRIC_COPY[id].button}
                       </button>
                     ))}
                   </div>
@@ -699,13 +748,13 @@ export default function App() {
                     <div className={s.tableWrap}>
                       <table>
                         <caption>
-                          {rankSpec.definition} <b>낮을수록 접근성이 취약</b>합니다. 오름차순 상위 {RANK_SIZE}곳.
+                          {RANK_METRIC_COPY[rankMetricId].description} {rankSpec.definition} <b>값이 낮을수록 충전 인프라가 부족할 가능성이 큽니다.</b> 낮은 값부터 {RANK_SIZE}곳을 보여줍니다.
                         </caption>
                         <thead>
                           <tr>
                             <th scope="col">지역</th>
                             <th scope="col">
-                              {rankSpec.id} ({rankSpec.unit})
+                              {RANK_METRIC_COPY[rankMetricId].short} ({rankSpec.unit})
                             </th>
                           </tr>
                         </thead>
