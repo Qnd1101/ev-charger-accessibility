@@ -32,6 +32,12 @@ import {
   describeActiveFilters,
   shortSido,
 } from "./selectors";
+import {
+  DEFAULT_RANK_METRIC_ID,
+  DEFAULT_VIEW,
+  parseFilterQuery,
+  serializeFilterQuery,
+} from "./urlState";
 
 const OP_LIST_CAP = 60;
 const num = (n: number) => n.toLocaleString("ko-KR");
@@ -72,16 +78,37 @@ export default function App() {
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [f, setF] = useState<Filters>(EMPTY_FILTERS);
   const [opQuery, setOpQuery] = useState("");
-  const [view, setView] = useState<MapView>("region");
+  const [view, setView] = useState<MapView>(DEFAULT_VIEW);
   // 기본값 M2(기존 동작·하위 호환 유지). M1은 시도 해상도, M2는 시군구 해상도(metrics.json).
-  const [rankMetricId, setRankMetricId] = useState<"M1" | "M2">("M2");
+  const [rankMetricId, setRankMetricId] = useState<"M1" | "M2">(DEFAULT_RANK_METRIC_ID);
 
   useEffect(() => {
     setError(null);
-    loadDataset().then(setData, (caught: unknown) => {
-      setError(caught instanceof Error ? caught.message : "집계 데이터를 불러오는 중 알 수 없는 오류가 발생했습니다.");
-    });
+    loadDataset().then(
+      (loaded) => {
+        const parsed = parseFilterQuery(window.location.search, loaded);
+        setF(parsed.filters);
+        setView(parsed.view);
+        setRankMetricId(parsed.rankMetricId);
+        setData(loaded);
+      },
+      (caught: unknown) => {
+        setError(caught instanceof Error ? caught.message : "집계 데이터를 불러오는 중 알 수 없는 오류가 발생했습니다.");
+      },
+    );
   }, [loadAttempt]);
+
+  useEffect(() => {
+    if (!data) return;
+
+    const query = serializeFilterQuery(f, view, rankMetricId, data);
+    const search = query ? `?${query}` : "";
+    if (window.location.search === search) return;
+
+    // 필터 링크(`#rail`)는 현재 위치에서 유지하고 상태 변경은 방문 기록을 쌓지 않는다.
+    const url = `${window.location.pathname}${search}${window.location.hash}`;
+    window.history.replaceState(window.history.state, "", url);
+  }, [data, f, rankMetricId, view]);
 
   const totals = useMemo(() => (data ? aggregateRegions(data, f) : null), [data, f]);
   const cells = useMemo(() => (data ? aggregateGrid(data, f) : []), [data, f]);

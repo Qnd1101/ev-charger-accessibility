@@ -111,10 +111,49 @@ const dataset: Dataset = {
 
 describe("App 빈 결과 상태", () => {
   beforeEach(() => {
+    window.history.replaceState(null, "", "/");
     loadDatasetMock.mockReset();
     loadDatasetMock.mockResolvedValue(dataset);
     distributionMapMock.mockReset();
     deriveRecoverabilityMock.mockReset();
+  });
+
+  it("초기 URL의 필터·지도·랭킹 상태를 데이터 로드 뒤 적용한다", async () => {
+    const params = new URLSearchParams({
+      z: "11",
+      op: JSON.stringify(["기관 B"]),
+      view: "heat",
+      metric: "M1",
+    });
+    window.history.replaceState(null, "", `/?${params.toString()}#rail`);
+
+    render(<App />);
+
+    expect(await screen.findByRole("checkbox", { name: "서울특별시" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /기관 B/ })).toBeChecked();
+    expect(screen.getByRole("button", { name: "히트맵" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "M1" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("row", { name: "충전대기 1" })).toBeInTheDocument();
+    expect(distributionMapMock).toHaveBeenCalledWith(expect.objectContaining({ view: "heat" }));
+    expect(window.location.hash).toBe("#rail");
+  });
+
+  it("필터 변경을 현재 해시를 보존한 URL에 기록하고 기본값 복원 시 쿼리를 지운다", async () => {
+    window.history.replaceState(null, "", "/#rail");
+    const user = userEvent.setup();
+    render(<App />);
+
+    const operator = await screen.findByRole("checkbox", { name: /기관 A/ });
+    await user.click(operator);
+
+    await waitFor(() => {
+      expect(JSON.parse(new URLSearchParams(window.location.search).get("op")!)).toEqual(["기관 A"]);
+    });
+    expect(window.location.hash).toBe("#rail");
+
+    await user.click(operator);
+    await waitFor(() => expect(window.location.search).toBe(""));
+    expect(window.location.hash).toBe("#rail");
   });
 
   it("결과가 있으면 운영기관 검색 재렌더에서도 복구 가능성을 탐색하지 않는다", async () => {
