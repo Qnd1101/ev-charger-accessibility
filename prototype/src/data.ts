@@ -146,7 +146,7 @@ export function aggregateRegions(data: Dataset, f: Filters): Map<number, Terms> 
   return out;
 }
 
-/** 필터 범위의 전국 합계. 인구·EV 는 선택된 지역만 더한다(분모가 범위를 따라가야 한다). */
+/** 필터 범위 합계. 카운트는 모든 필터를 따르고, 인구·EV 분모는 선택한 지리 범위만 따른다. */
 export function totalTerms(data: Dataset, f: Filters, totals: Map<number, Terms>): Terms {
   const sum: Terms = { ...ZERO };
   for (const t of totals.values()) {
@@ -163,7 +163,7 @@ export function totalTerms(data: Dataset, f: Filters, totals: Map<number, Terms>
   let population = 0;
   let popKnown = false;
   for (const r of data.regions) {
-    if (inScope(r) && r.population != null && totals.has(r.zscode)) {
+    if (inScope(r) && r.population != null) {
       population += r.population;
       popKnown = true;
     }
