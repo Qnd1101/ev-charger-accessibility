@@ -20,7 +20,9 @@
   font-family: var(--mono);
   font-size: 15px;
   letter-spacing: -0.02em;
-  color: var(--lime);
+  /* --lime(#3182f6)은 흰 배경에서 3.71:1로 WCAG AA(4.5:1) 미달이라
+     더 어두운 --cyan을 쓴다. */
+  color: var(--cyan);
   margin: 0 0 var(--s1);
 }
 
@@ -83,7 +85,8 @@
 }
 
 .segment label:has(input:checked) {
-  background: var(--lime);
+  /* --lime 배경에 흰 텍스트는 3.71:1로 미달이라 더 어두운 --cyan을 쓴다. */
+  background: var(--cyan);
   color: var(--ivory-2);
   font-weight: 600;
 }

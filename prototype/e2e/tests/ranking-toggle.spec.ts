@@ -22,11 +22,11 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole("heading", { name: "대한민국 충전 인프라 관제" })).toBeVisible();
 });
 
-test("기본값은 M2다 (하위 호환): 순위 패널 배지가 시군구 · M2를 보여준다", async ({ page }) => {
+test("기본값은 M2다 (하위 호환): 순위 패널 배지가 시군구 기준 · 인구 10만 명당을 보여준다", async ({ page }) => {
   const rankPanel = page.getByRole("region", { name: "취약 지역 순위" });
-  await expect(rankPanel.getByText("시군구 · M2")).toBeVisible();
-  await expect(rankPanel.getByRole("button", { name: "M2" })).toHaveAttribute("aria-pressed", "true");
-  await expect(rankPanel.getByRole("button", { name: "M1" })).toHaveAttribute("aria-pressed", "false");
+  await expect(rankPanel.getByText("시군구 기준 · 인구 10만 명당")).toBeVisible();
+  await expect(rankPanel.getByRole("button", { name: /인구 기준/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(rankPanel.getByRole("button", { name: /전기차 기준/ })).toHaveAttribute("aria-pressed", "false");
 });
 
 test("M1 토글: 서울특별시·부산광역시로 범위를 좁히면 시도 단위 손계산 값과 일치한다", async ({ page }) => {
@@ -34,12 +34,12 @@ test("M1 토글: 서울특별시·부산광역시로 범위를 좁히면 시도 
   await page.getByRole("checkbox", { name: "부산광역시" }).check();
 
   const rankPanel = page.getByRole("region", { name: "취약 지역 순위" });
-  await rankPanel.getByRole("button", { name: "M1" }).click();
-  await expect(rankPanel.getByRole("button", { name: "M1" })).toHaveAttribute("aria-pressed", "true");
+  await rankPanel.getByRole("button", { name: /전기차 기준/ }).click();
+  await expect(rankPanel.getByRole("button", { name: /전기차 기준/ })).toHaveAttribute("aria-pressed", "true");
 
-  // 배지·표 헤더가 시도 해상도·M1 지표로 바뀐다.
-  await expect(rankPanel.getByText("시도 · M1")).toBeVisible();
-  await expect(rankPanel.getByRole("columnheader", { name: /M1/ })).toBeVisible();
+  // 배지·표 헤더가 시도 해상도·전기차 기준 지표로 바뀐다.
+  await expect(rankPanel.getByText("시도 기준 · 전기차 1,000대당")).toBeVisible();
+  await expect(rankPanel.getByRole("columnheader", { name: /전기차 1,000대당/ })).toBeVisible();
 
   const rows = rankPanel.getByRole("table").locator("tbody tr");
   await expect(rows).toHaveCount(2);
@@ -55,12 +55,12 @@ test("M1 토글: 서울특별시·부산광역시로 범위를 좁히면 시도 
 
 test("M1에서 M2로 되돌리면 배지·표가 원래 시군구 값으로 복원된다 (회귀 없음)", async ({ page }) => {
   const rankPanel = page.getByRole("region", { name: "취약 지역 순위" });
-  await rankPanel.getByRole("button", { name: "M1" }).click();
-  await expect(rankPanel.getByText("시도 · M1")).toBeVisible();
+  await rankPanel.getByRole("button", { name: /전기차 기준/ }).click();
+  await expect(rankPanel.getByText("시도 기준 · 전기차 1,000대당")).toBeVisible();
 
-  await rankPanel.getByRole("button", { name: "M2" }).click();
-  await expect(rankPanel.getByRole("button", { name: "M2" })).toHaveAttribute("aria-pressed", "true");
-  await expect(rankPanel.getByText("시군구 · M2")).toBeVisible();
+  await rankPanel.getByRole("button", { name: /인구 기준/ }).click();
+  await expect(rankPanel.getByRole("button", { name: /인구 기준/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(rankPanel.getByText("시군구 기준 · 인구 10만 명당")).toBeVisible();
 
   // 기존 필터 시나리오 8(무필터 M2 표)과 같은 값으로 되돌아온다.
   const rows = rankPanel.getByRole("table").locator("tbody tr");

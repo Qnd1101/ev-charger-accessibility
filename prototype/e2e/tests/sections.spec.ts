@@ -36,6 +36,6 @@ test.describe("네 섹션(개요·분포 지도·부족 지역 랭킹·접근성
 
   test("접근성 랭킹: 순위 표 배지가 인구 해상도와 지표 ID(M2)를 밝힌다", async ({ page }) => {
     const rankPanel = page.getByRole("region", { name: "취약 지역 순위" });
-    await expect(rankPanel.getByText("시군구 · M2")).toBeVisible();
+    await expect(rankPanel.getByText("시군구 기준 · 인구 10만 명당")).toBeVisible();
   });
 });
