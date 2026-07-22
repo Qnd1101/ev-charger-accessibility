@@ -60,7 +60,7 @@ export interface StatusRow {
  * 랭킹 축의 시도 축약. 앞 두 글자만 자르면 전라남도/전라북도가 모두 '전라'가 되므로
  * 서로 구분되는 관용 축약(전남·경북·충북 등)을 쓴다.
  */
-function shortSido(name: string): string {
+export function shortSido(name: string): string {
   return /^(전라|경상|충청)/.test(name) ? name[0] + name[2] : name.slice(0, 2);
 }
 

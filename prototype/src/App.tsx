@@ -30,6 +30,7 @@ import {
   deriveRecoverability,
   deriveStatusRows,
   describeActiveFilters,
+  shortSido,
 } from "./selectors";
 
 const OP_LIST_CAP = 60;
@@ -138,6 +139,16 @@ export default function App() {
       .slice(0, 5);
   }, [data, totals]);
 
+  const activeFilterDescription = useMemo(
+    () => (data ? describeActiveFilters(data, f) : { chips: [], emptyReasons: [] }),
+    [data, f],
+  );
+
+  const filterDimensions = useMemo(() => {
+    if (!data || !scopeTerms || (scopeTerms.charger_count ?? 0) > 0) return [];
+    return deriveRecoverability(data, f);
+  }, [data, f]);
+
   if (error) {
     return (
       <main className={s.canvas}>
@@ -204,8 +215,7 @@ export default function App() {
   const toggle = <T,>(list: T[], v: T): T[] =>
     list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
 
-  const { chips, emptyReasons } = describeActiveFilters(data, f);
-  const filterDimensions = deriveRecoverability(data, f);
+  const { chips, emptyReasons } = activeFilterDescription;
   const individuallyRecoverable = filterDimensions.filter((dimension) => dimension.restored);
 
   return (

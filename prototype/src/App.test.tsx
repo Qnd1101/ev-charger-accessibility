@@ -6,7 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Dataset } from "./data";
 import type { MetricSpec } from "./metrics";
 
-const { distributionMapMock, loadDatasetMock } = vi.hoisted(() => ({
+const { deriveRecoverabilityMock, distributionMapMock, loadDatasetMock } = vi.hoisted(() => ({
+  deriveRecoverabilityMock: vi.fn(),
   distributionMapMock: vi.fn(),
   loadDatasetMock: vi.fn(),
 }));
@@ -27,6 +28,16 @@ vi.mock("./DistributionMap", () => ({
   },
 }));
 vi.mock("./RankingChart", () => ({ default: () => <figure aria-label="차트 대체 콘텐츠" /> }));
+vi.mock("./selectors", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./selectors")>();
+  return {
+    ...actual,
+    deriveRecoverability: (...args: Parameters<typeof actual.deriveRecoverability>) => {
+      deriveRecoverabilityMock(...args);
+      return actual.deriveRecoverability(...args);
+    },
+  };
+});
 
 import App from "./App";
 
@@ -102,6 +113,27 @@ describe("App 빈 결과 상태", () => {
     loadDatasetMock.mockReset();
     loadDatasetMock.mockResolvedValue(dataset);
     distributionMapMock.mockReset();
+    deriveRecoverabilityMock.mockReset();
+  });
+
+  it("결과가 있으면 운영기관 검색 재렌더에서도 복구 가능성을 탐색하지 않는다", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("checkbox", { name: /기관 A/ }));
+    await user.type(screen.getByRole("searchbox", { name: "운영기관 검색" }), "기관");
+
+    expect(deriveRecoverabilityMock).not.toHaveBeenCalled();
+  });
+
+  it("결과가 0기이면 복구 가능성을 탐색하고 복구 버튼을 표시한다", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("checkbox", { name: /기관 C/ }));
+
+    expect(await screen.findByRole("button", { name: "운영기관 조건 해제" })).toBeInTheDocument();
+    expect(deriveRecoverabilityMock).toHaveBeenCalled();
   });
 
   it("시군구 코로플레스를 기본 지도 표현으로 연결한다", async () => {
