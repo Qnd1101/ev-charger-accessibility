@@ -3,6 +3,7 @@ import {
   aggregateRegions,
   aggregateStatusDistribution,
   totalTerms,
+  zcodeByZscode,
   type Dataset,
   type Filters,
   type SpeedFilter,
@@ -84,7 +85,7 @@ export function deriveRanking(
 
   const byZcode = () => {
     const acc = new Map<number, Terms>();
-    const zcodesByZscode = new Map(data.regions.map((region) => [region.zscode, region.zcode]));
+    const zcodesByZscode = zcodeByZscode(data);
     for (const [zscode, terms] of totals) {
       const zcode = zcodesByZscode.get(zscode);
       if (zcode === undefined) continue;

@@ -18,7 +18,7 @@
 | `test_region_bridge.py` | 전남광주통합특별시(zcode 12) → 레거시 광주/전남 정규화 검증 |
 | `test_boundary_asset.py` | `data/ref/sigungu.topo.json`의 물리 경계 계약(229개, 세종, 좌표 범위, 도서 지역) 검증 |
 | `test_pipeline.py` | 통합 테스트 — 합성 스냅샷으로 `clean.py`→`metrics.py` 전 구간 실제 실행 |
-| `test_app.py` | `src/display.py` 순수 함수(격자 집계, 기준일 각주, stat 코드북, 랭킹 계산) 검증. Streamlit 제거 후에도 유지되는 계약 |
+| `test_app.py` | `src/codebook.py` 순수 함수(격자 집계, 기준일 각주, stat 코드북, 랭킹 계산) 검증 |
 | `test_web_data.py` | `prototype/public/data/*.json`(React용 정적 희소 집계)이 Python 지표 값과 일치하는지 계약 테스트 |
 | `test_e2e_data_contract.py` | `prototype/e2e/fixtures/build_e2e_fixture.py` 산출물이 손계산 기대값과 일치하는지 검증(Playwright 스위트와 값 소스 공유) |
 

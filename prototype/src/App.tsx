@@ -335,7 +335,7 @@ export default function App() {
 
         <fieldset className={s.field}>
           <legend>이용 시간</legend>
-          <label style={{ display: "flex", gap: 8, fontSize: 13 }}>
+          <label className={s.hoursOption}>
             <input
               type="checkbox"
               checked={f.only24h}
@@ -352,8 +352,7 @@ export default function App() {
           <div className={s.railResultLabel}>필터 후 충전기</div>
           <button
             type="button"
-            className={s.reset}
-            style={{ marginTop: 12 }}
+            className={`${s.reset} ${s.resetSpaced}`}
             onClick={() => {
               setF(EMPTY_FILTERS);
               setOpQuery("");
@@ -507,7 +506,7 @@ export default function App() {
                   <tbody>
                     {statusRows.map((row) => (
                       <tr key={row.label}>
-                        <th scope="row" style={{ fontWeight: 400 }}>
+                        <th scope="row" className={s.rowHeader}>
                           {row.label}
                         </th>
                         <td className={s.num}>{num(row.count)}</td>
@@ -528,13 +527,8 @@ export default function App() {
                       <button
                         key={v}
                         type="button"
-                        className={s.quickBtn}
+                        className={`${s.quickBtn}${view === v ? ` ${s.quickBtnActive}` : ""}`}
                         aria-pressed={view === v}
-                        style={
-                          view === v
-                            ? { borderColor: "var(--ink)", color: "var(--ink)", fontWeight: 600 }
-                            : undefined
-                        }
                         onClick={() => setView(v)}
                       >
                         {label}
@@ -585,13 +579,8 @@ export default function App() {
                       <button
                         key={id}
                         type="button"
-                        className={s.quickBtn}
+                        className={`${s.quickBtn}${rankMetricId === id ? ` ${s.quickBtnActive}` : ""}`}
                         aria-pressed={rankMetricId === id}
-                        style={
-                          rankMetricId === id
-                            ? { borderColor: "var(--ink)", color: "var(--ink)", fontWeight: 600 }
-                            : undefined
-                        }
                         onClick={() => setRankMetricId(id)}
                         aria-label={`${RANK_METRIC_COPY[id].button}: ${RANK_METRIC_COPY[id].description}`}
                       >
@@ -635,7 +624,7 @@ export default function App() {
                         <tbody>
                           {ranking.map((r) => (
                             <tr key={r.name}>
-                              <th scope="row" style={{ fontWeight: 400 }}>
+                              <th scope="row" className={s.rowHeader}>
                                 {r.name}
                               </th>
                               <td className={s.num}>

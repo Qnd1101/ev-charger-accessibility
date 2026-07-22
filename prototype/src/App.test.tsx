@@ -132,7 +132,7 @@ describe("App 빈 결과 상태", () => {
     expect(await screen.findByRole("checkbox", { name: "서울특별시" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: /기관 B/ })).toBeChecked();
     expect(screen.getByRole("button", { name: "히트맵" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "M1" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /전기차 기준/ })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("row", { name: "충전대기 1" })).toBeInTheDocument();
     expect(distributionMapMock).toHaveBeenCalledWith(expect.objectContaining({ view: "heat" }));
     expect(window.location.hash).toBe("#rail");

@@ -131,17 +131,29 @@ const ZERO: Terms = {
   available_count: 0,
 };
 
+export function zcodeByZscode(data: Dataset): Map<number, number> {
+  return new Map(data.regions.map((region) => [region.zscode, region.zcode]));
+}
+
+function createRegionRowMatcher(data: Dataset, filters: Filters) {
+  const zcodes = new Set(filters.zcodes);
+  const operators = new Set(filters.operators);
+  const h24 = filters.only24h ? H24.ONLY : H24.ALL;
+  const zcodesByZscode = zcodeByZscode(data);
+
+  return (zscode: number, operator: number, speed: number, rowH24: number): boolean =>
+    speed === filters.speed
+    && rowH24 === h24
+    && (!operators.size || operators.has(operator))
+    && (!zcodes.size || zcodes.has(zcodesByZscode.get(zscode) ?? -1));
+}
+
 export function aggregateRegions(data: Dataset, f: Filters): Map<number, Terms> {
-  const zcodes = new Set(f.zcodes);
-  const ops = new Set(f.operators);
-  const h24 = f.only24h ? H24.ONLY : H24.ALL;
-  const zOf = new Map(data.regions.map((r) => [r.zscode, r.zcode]));
+  const matches = createRegionRowMatcher(data, f);
 
   const out = new Map<number, Terms>();
   for (const [zscode, op, speed, h, chargers, stations, fast, live, available] of data.regionCube) {
-    if (speed !== f.speed || h !== h24) continue;
-    if (ops.size && !ops.has(op)) continue;
-    if (zcodes.size && !zcodes.has(zOf.get(zscode) ?? -1)) continue;
+    if (!matches(zscode, op, speed, h)) continue;
 
     const cur = out.get(zscode) ?? { ...ZERO };
     cur.charger_count! += chargers;
@@ -200,18 +212,13 @@ export function totalTerms(data: Dataset, f: Filters, totals: Map<number, Terms>
  * 한다(같은 (zscode, opIdx, speed, h24) 키에서 나온 값이라서다).
  */
 export function aggregateStatusDistribution(data: Dataset, f: Filters): number[] {
-  const zcodes = new Set(f.zcodes);
-  const ops = new Set(f.operators);
-  const h24 = f.only24h ? H24.ONLY : H24.ALL;
-  const zOf = new Map(data.regions.map((r) => [r.zscode, r.zcode]));
+  const matches = createRegionRowMatcher(data, f);
   const labelCount = data.statusCube.labels.length;
 
   const sums = new Array<number>(labelCount).fill(0);
   for (const row of data.statusCube.rows) {
     const [zscode, op, speed, h] = row;
-    if (speed !== f.speed || h !== h24) continue;
-    if (ops.size && !ops.has(op)) continue;
-    if (zcodes.size && !zcodes.has(zOf.get(zscode) ?? -1)) continue;
+    if (!matches(zscode, op, speed, h)) continue;
 
     for (let i = 0; i < labelCount; i++) sums[i] += row[4 + i];
   }

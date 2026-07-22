@@ -15,7 +15,7 @@ Python 데이터 파이프라인의 핵심 모듈. 수집(`collect.py`)→정제
 | `metrics.py` | 정제 테이블을 시도/시군구 단위로 집계해 M1~M5 산출. 인구 데이터 해상도(시군구 우선, 없으면 시도)를 자동 판정 → `data/processed/metrics_sido.parquet`, `metrics_sgg.parquet` |
 | `metric_specs.py` | **M1~M5 지표 정의의 유일한 원본.** 공식을 코드가 아니라 `MetricSpec` 데이터(분자/분모/스케일/극성/해상도)로 표현해 `to_json()`으로 내보낸다. `apply_metrics()`가 이 표를 파생 열로 적용 |
 | `regions.py` | 행정구역 코드 상수의 단일 출처 — 전남광주 통합(zcode 12), 인천 개편 매핑, 세종 특례, 대한민국 좌표 범위 |
-| `display.py` | 순수 표시 로직(streamlit 비의존): stat 코드북 라벨링, 지도 격자 집계, 랭킹 뷰 계산. 부작용 없이 임포트 가능하도록 앱 본문에서 분리 |
+| `codebook.py` | 활용가이드 stat 코드북과 약 2km 지도 격자 기준의 단일 출처. 상태 라벨링·격자 집계·랭킹 뷰 순수 계산도 함께 제공 |
 
 ## For AI Agents
 
@@ -30,7 +30,7 @@ Python 데이터 파이프라인의 핵심 모듈. 수집(`collect.py`)→정제
 
 - `python -m pytest tests/ -v`로 전체 스위트 실행.
 - 새 회귀 테스트는 결함을 주입했을 때 실제로 실패하는지 확인한다(루트 `AGENTS.md`).
-- 대응 테스트: `tests/test_collect.py`, `tests/test_clean.py`, `tests/test_metrics.py`, `tests/test_ref.py`, `tests/test_region_bridge.py`, `tests/test_pipeline.py`(통합), `tests/test_app.py`(display.py).
+- 대응 테스트: `tests/test_collect.py`, `tests/test_clean.py`, `tests/test_metrics.py`, `tests/test_ref.py`, `tests/test_region_bridge.py`, `tests/test_pipeline.py`(통합), `tests/test_app.py`(codebook.py).
 
 ### Common Patterns
 

@@ -1,6 +1,6 @@
 import { EMPTY_FILTERS, SPEED, type Filters, type SpeedFilter } from "./data";
 
-export type UrlMapView = "region" | "grid" | "heat" | "bubble";
+export type UrlMapView = "region" | "supply" | "grid" | "heat" | "bubble";
 export type UrlRankMetricId = "M1" | "M2";
 
 export interface UrlStateDataset {
@@ -27,7 +27,7 @@ const TOKEN_SPEEDS = new Map<string, SpeedFilter>([
   ["slow", SPEED.SLOW],
 ]);
 
-const MAP_VIEWS = new Set<UrlMapView>(["region", "grid", "heat", "bubble"]);
+const MAP_VIEWS = new Set<UrlMapView>(["region", "supply", "grid", "heat", "bubble"]);
 const RANK_METRICS = new Set<UrlRankMetricId>(["M1", "M2"]);
 
 function singleValue(params: URLSearchParams, key: string): string | null {

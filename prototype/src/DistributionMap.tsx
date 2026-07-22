@@ -13,6 +13,15 @@ import {
   loadSigunguBoundaries,
   type BoundaryValue,
 } from "./mapBoundary";
+import {
+  deriveFallbackNotice,
+  deriveLayerVisibility,
+  type BoundaryState,
+  type LayerVisibility,
+  type MapView,
+} from "./mapView";
+
+export type { MapView } from "./mapView";
 
 const BASEMAP = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 const GRID_SOURCE = "cells";
@@ -22,6 +31,13 @@ const MIN_3D_ZOOM = 7;
 const MOBILE_QUERY = "(max-width: 767px)";
 const MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const THREE_D_REASON_ID = "distribution-map-3d-reason";
+const LAYER_IDS = {
+  grid: "grid",
+  heat: "heat",
+  bubble: "bubble",
+  choropleth: "choropleth",
+  vulnerability3d: "vulnerability-3d",
+} satisfies Record<keyof LayerVisibility, string>;
 const LOCAL_FALLBACK_STYLE: maplibregl.StyleSpecification = {
   version: 8,
   sources: {},
@@ -31,8 +47,6 @@ const LOCAL_FALLBACK_STYLE: maplibregl.StyleSpecification = {
     paint: { "background-color": "#eef3f6" },
   }],
 };
-
-export type MapView = "region" | "supply" | "grid" | "heat" | "bubble";
 
 interface Props {
   cells: Cell[];
@@ -46,8 +60,6 @@ interface Props {
   fixedVulnerabilityMax?: number;
   boundaryUrl?: string;
 }
-
-type BoundaryState = "loading" | "ready" | "missing" | "unconnected";
 
 function toGridGeoJson(cells: Cell[], deg: number): GeoJSON.FeatureCollection {
   const half = deg / 2;
@@ -144,10 +156,12 @@ export default function DistributionMap({
   const [motionReduced, setMotionReduced] = useState(false);
   const [mobile, setMobile] = useState(false);
 
-  if (fixedDomain.current === null && Number.isFinite(fixedVulnerabilityMax) && (fixedVulnerabilityMax ?? 0) > 0) {
-    fixedDomain.current = fixedVulnerabilityMax!;
-  }
-  const vulnerabilityMax = fixedDomain.current;
+  // ADR 0001의 고정 도메인은 필터 사이에서 고정한다는 뜻이다. 이 prop은 무필터 전국값이므로
+  // 양의 유한값이 바뀌면 데이터셋 재로딩으로 보고 따라가되, 일시적인 무효값에는 마지막 값을 유지한다.
+  const incomingDomain = Number.isFinite(fixedVulnerabilityMax) && (fixedVulnerabilityMax ?? 0) > 0
+    ? fixedVulnerabilityMax!
+    : null;
+  const vulnerabilityMax = incomingDomain ?? fixedDomain.current;
   const availability = getThreeDimensionalAvailability({
     boundariesReady: boundaryState === "ready" && !basemapMissing,
     hasFixedDomain: vulnerabilityMax !== null,
@@ -368,6 +382,8 @@ export default function DistributionMap({
   }, [activeBoundaryValues, geometryLoaded]);
 
   useEffect(() => {
+    // commit된 prop만 latch해 중단될 수 있는 render 중에는 ref를 변경하지 않는다.
+    if (vulnerabilityMax !== null) fixedDomain.current = vulnerabilityMax;
     const instance = map.current;
     if (!instance || !geometryLoaded || vulnerabilityMax === null) return;
     instance.setPaintProperty("choropleth", "fill-color", view === "supply" ? supplyColor(supplyMax) : vulnerabilityColor(vulnerabilityMax));
@@ -380,34 +396,23 @@ export default function DistributionMap({
     if (!instance || !mapLoaded) return;
     const active3d = is3d && canUse3d;
     if (is3d && !canUse3d) setIs3d(false);
-    const fallback = basemapMissing || boundaryState !== "ready";
-    setVisibility(instance, "grid", (fallback && view !== "bubble") || view === "grid");
-    setVisibility(instance, "heat", !fallback && view === "heat");
-    // 밀집 원은 격자 셀 수만 쓰고 경계·배경지도에 의존하지 않으므로 fallback 중에도 표시한다.
-    setVisibility(instance, "bubble", view === "bubble");
-    setVisibility(instance, "choropleth", !fallback && !active3d && view !== "bubble");
-    setVisibility(instance, "vulnerability-3d", !fallback && active3d);
+    const visibility = deriveLayerVisibility(view, {
+      basemapMissing,
+      boundaryReady: boundaryState === "ready",
+      active3d,
+    });
+    for (const layer of Object.keys(visibility) as Array<keyof LayerVisibility>) {
+      setVisibility(instance, LAYER_IDS[layer], visibility[layer]);
+    }
     instance.easeTo({ bearing: 0, pitch: active3d ? 45 : 0, duration: motionReduced ? 0 : 450 });
   }, [basemapMissing, boundaryState, canUse3d, is3d, mapLoaded, motionReduced, view]);
 
-  // 밀집 원 뷰는 시군구 경계를 쓰지 않으므로 경계 관련 강등 문구를 내지 않는다.
-  // 배경지도만 없을 때는 원 위치의 지리적 맥락이 빠진다는 사실만 알린다.
-  const bubbleBanner = view === "bubble" && basemapMissing;
-  const fallbackMessage = view === "bubble"
-    ? "배경지도를 불러오지 못했습니다. 밀집 원만 표시합니다."
-    : basemapMissing
-      ? "배경지도를 불러오지 못해 2km 격자로 표시합니다."
-      : boundaryState === "loading"
-        ? "시군구 경계를 불러오는 중입니다."
-        : boundaryState === "missing"
-          ? "시군구 경계 파일을 읽지 못해 2km 격자로 표시합니다."
-          : "유효한 지역별 지도 값 또는 정확한 경계 코드 조인이 없어 2km 격자로 표시합니다.";
-  const showBanner = view === "bubble" ? bubbleBanner : basemapMissing || boundaryState !== "ready";
+  const fallbackNotice = deriveFallbackNotice(view, basemapMissing, boundaryState);
 
   return (
     <div className={s.root}>
       <div ref={box} className={s.map} />
-      {showBanner && <p role="status" className={s.status}>{fallbackMessage}</p>}
+      {fallbackNotice && <p role="status" className={s.status}>{fallbackNotice}</p>}
       <div className={s.controls}>
         {/* 비활성 이유는 항상 보이는 텍스트로 노출한다 -- title 은 호버 없는 터치 기기에서 닿지 않는다. */}
         <button

@@ -1,4 +1,4 @@
-"""표시 계층(display.py) 순수 함수 검증.
+"""코드북 계층(codebook.py) 순수 함수 검증.
 
 Streamlit 대시보드는 React 로 대체되며 제거됐다. 여기서는 데이터 파이프라인이
 표시용으로 노출하는 순수 함수(격자 집계, 기준일 각주, stat 코드북, 랭킹 계산)를
@@ -10,7 +10,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-import display
+import codebook
 from conftest import ROOT
 
 
@@ -21,7 +21,7 @@ class TestMapPerformance:
             "lat": [37.5001, 37.5002, 37.5003, 35.1],
             "lng": [127.0001, 127.0002, 127.0003, 129.0],
         })
-        cells = display.grid_aggregate(pts)
+        cells = codebook.grid_aggregate(pts)
 
         assert len(cells) == 2
         assert cells["count"].sum() == 4  # 아무 포인트도 잃지 않는다
@@ -30,7 +30,7 @@ class TestMapPerformance:
 class TestBasisFootnote:
     def test_basis_footnote_names_all_three_reference_dates(self) -> None:
         """세 데이터의 기준일이 다르다. 그걸 숨기면 사용자가 지표를 오독한다."""
-        note = display.basis_footnote("20260712", "2025-12-31", has_population=True)
+        note = codebook.basis_footnote("20260712", "2025-12-31", has_population=True)
 
         assert "기준시점" in note
         assert "2026-07-12" in note  # 충전기 스냅샷
@@ -38,7 +38,7 @@ class TestBasisFootnote:
         assert "2026-06" in note  # 인구
 
     def test_basis_footnote_marks_population_absent(self) -> None:
-        note = display.basis_footnote("20260712", "2025-12-31", has_population=False)
+        note = codebook.basis_footnote("20260712", "2025-12-31", has_population=False)
         assert "N/A" in note
 
 
@@ -54,7 +54,7 @@ class TestStatCodebook:
     """
 
     def test_codebook_covers_every_code_in_the_guide(self) -> None:
-        missing = GUIDE_STAT_CODES - set(display.STAT_LABELS)
+        missing = GUIDE_STAT_CODES - set(codebook.STAT_LABELS)
         assert not missing, f"활용가이드 코드표에 있는데 코드북에 없는 stat: {sorted(missing)}"
 
     def test_codebook_covers_every_stat_in_real_data(self) -> None:
@@ -63,12 +63,12 @@ class TestStatCodebook:
             pytest.skip("정제 테이블이 아직 없습니다")
 
         actual = set(pd.read_parquet(path, columns=["stat"])["stat"].unique())
-        missing = actual - set(display.STAT_LABELS)
+        missing = actual - set(codebook.STAT_LABELS)
         assert not missing, f"코드북에 없는 stat 값: {sorted(missing)}"
 
     def test_label_stat_never_drops_rows(self) -> None:
         stat = pd.Series(["2", "3", "9", "77"])  # 77 은 미래의 미정의 코드
-        labeled = display.label_stat(stat)
+        labeled = codebook.label_stat(stat)
 
         assert labeled.notna().all()
         assert labeled.value_counts().sum() == len(stat)  # 아무것도 빠지지 않는다
@@ -133,7 +133,7 @@ class TestBuildRankingView:
         import metrics  # noqa: PLC0415
 
         agg = metrics.aggregate_region(chargers, "zcode")
-        return display.build_ranking_view(
+        return codebook.build_ranking_view(
             self._base(), agg, "zcode",
             denominator="ev_count", per=1000, metric_label="M1",
         )

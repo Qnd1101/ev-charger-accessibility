@@ -80,5 +80,6 @@ export default function RankingChart({ rows, unit }: Props) {
     );
   }, [rows, unit]);
 
+  // ECharts 초기 크기 계산에 두 축의 명시적 크기가 필요해 단일 layout-critical 스타일은 인접해 둔다.
   return <div ref={box} style={{ width: "100%", height: "100%" }} role="img" aria-label="취약 지역 순위 막대 차트. 같은 값을 아래 표로도 제공합니다." />;
 }

@@ -33,6 +33,6 @@
 ## Dependencies
 
 ### Internal
-- `src/regions.py`, `src/metrics.py`, `src/metric_specs.py`, `src/display.py`
+- `src/regions.py`, `src/metrics.py`, `src/metric_specs.py`, `src/codebook.py`
 - 입력: `data/raw/`, `data/ref/`, `data/processed/`
 - 출력: `data/ref/*.csv`, `prototype/public/data/*.json`

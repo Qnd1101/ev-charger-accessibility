@@ -1,8 +1,7 @@
-"""대시보드의 순수 표시 로직.
+"""공식 충전기 상태 코드표와 정적 집계 기준.
 
-app.py 는 임포트만 해도 본문(파일 읽기, st.title 등)이 실행되는 스크립트다.
-그래서 테스트가 헬퍼 하나를 쓰려고 대시보드 전체를 돌리는 일이 없도록 여기로 뺐다.
-이 모듈은 streamlit 을 임포트하지 않는다 -- 부작용 없이 안전하게 임포트된다.
+상태 라벨은 OpenAPI 활용가이드 v1.23 공통코드 3.2절을 따르고, 약 52만 좌표를
+브라우저에 직접 보내지 않도록 지도 격자 크기를 약 2km(0.02도)로 고정한다.
 """
 
 from __future__ import annotations
@@ -23,9 +22,6 @@ STAT_LABELS = {
 # 브라우저로 가는 JSON 이 40MB 가 된다 -- folium 마커를 피한 이유와 똑같은 문제다.
 # 서버에서 미리 격자 집계하면 8천 셀(1.7%)로 줄어든다.
 GRID_DEG = 0.02
-
-# CARTO 배경지도는 Mapbox 토큰 없이 쓸 수 있다.
-BASEMAP = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
 
 # 지도와 필터에 필요한 컬럼만 읽는다. 40컬럼 전체를 읽으면 로드가 5배 느리다.
 MAP_COLUMNS = [
@@ -57,7 +53,7 @@ def build_ranking_view(
     per: int,
     metric_label: str,
 ) -> pd.DataFrame:
-    """랭킹 표의 데이터를 만든다. streamlit 없이 순수 계산이라 단위 테스트가 된다.
+    """랭킹 표의 데이터를 만드는 순수 계산이다.
 
     `agg` 는 **필터된** 충전기 프레임을 metrics.aggregate_region 에 통과시킨 결과여야 한다.
     그래야 M3/M5 도 필터를 반영한다 -- 안 그러면 "급속만" 필터에서 급속 비율이 26%로 나온다.
