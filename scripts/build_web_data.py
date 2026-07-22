@@ -35,7 +35,7 @@ ROOT = Path(__file__).resolve().parent.parent
 BOUNDARY_PATH = ROOT / "data" / "ref" / "sigungu.topo.json"
 sys.path.insert(0, str(ROOT / "src"))
 
-from display import GRID_DEG, STAT_LABELS, label_stat  # noqa: E402
+from codebook import GRID_DEG, STAT_LABELS, label_stat  # noqa: E402
 from metric_specs import to_json as metric_specs_json  # noqa: E402
 from metrics import (  # noqa: E402
     CLEAN_PATH,
@@ -55,6 +55,10 @@ SPEED_ALL, SPEED_FAST, SPEED_SLOW = 0, 1, 2
 H24_ALL, H24_ONLY = 0, 1
 
 TOP_OPERATORS = 10  # 필터 레일의 "상위 10개 빠른 선택"
+
+# 튜플 요소 순서·길이 또는 필수 파일 형태가 바뀔 때마다 올리고, 같은 변경에서
+# TypeScript validator의 지원 버전과 계약도 함께 갱신한다.
+SCHEMA_VERSION = 1
 
 
 def _slices(df: pd.DataFrame) -> list[tuple[int, int, pd.DataFrame]]:
@@ -113,7 +117,7 @@ def build_status_cube(
 
     개요 패널의 "충전기 상태 분포" 표용. region_cube 와 같은 (zscode, busiNm, speed, h24)
     키를 쓰지만 값이 5개 지표 대신 상태 코드별 개수다 -- 화면은 필터에 맞는 행만 더한다.
-    `label_stat` 로 코드북에 없는 stat 값도 라벨을 갖게 한다(display.py) -- 조용히 빠지면
+    `label_stat` 로 코드북에 없는 stat 값도 라벨을 갖게 한다(codebook.py) -- 조용히 빠지면
     안 된다.
     """
     rows: list[list[int]] = []
@@ -230,6 +234,7 @@ def main() -> None:
     pop_stem = (JUMIN_SGG_PATH if is_sgg_pop else JUMIN_SIDO_PATH).stem  # jumin_sgg_202606
     pop_ym = pop_stem.rsplit("_", 1)[-1]
     meta = {
+        "schema_version": SCHEMA_VERSION,
         "snapshot_date": f"{snapshot[:4]}-{snapshot[4:6]}-{snapshot[6:]}",
         "ev_date": str(sido["ev_date"].iloc[0]),
         "population_date": f"{pop_ym[:4]}-{pop_ym[4:]}" if population else None,

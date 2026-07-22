@@ -46,11 +46,12 @@ class TestSchemaMatchesRealContract:
     def test_meta_keys(self) -> None:
         meta = _load("meta.json")
         required = {
-            "snapshot_date", "ev_date", "population_date", "population_label",
+            "schema_version", "snapshot_date", "ev_date", "population_date", "population_label",
             "total_chargers", "invalid_coord_chargers", "grid_deg",
             "top_operators", "station_overcount_max", "unplaced_chargers",
         }
         assert required <= set(meta)
+        assert meta["schema_version"] == 1
 
     def test_region_cube_row_width(self) -> None:
         rows = _load("region_cube.json")

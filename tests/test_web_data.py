@@ -142,11 +142,15 @@ class TestSchema:
     def test_meta_keys(self) -> None:
         meta = _load("meta.json")
         required = {
-            "snapshot_date", "ev_date", "population_date", "population_label",
+            "schema_version", "snapshot_date", "ev_date", "population_date", "population_label",
             "total_chargers", "invalid_coord_chargers", "grid_deg",
             "top_operators", "station_overcount_max", "unplaced_chargers",
         }
         assert required <= set(meta)
+
+    def test_schema_version(self) -> None:
+        """튜플 순서·길이 계약이 바뀌면 앱과 데이터가 같은 버전을 요구해야 한다."""
+        assert _load("meta.json")["schema_version"] == 1
 
     def test_top_operators_are_ten_and_known(self) -> None:
         meta, ops = _load("meta.json"), _load("operators.json")

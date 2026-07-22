@@ -61,6 +61,7 @@ const metric = (
 
 const dataset: Dataset = {
   meta: {
+    schema_version: 1,
     snapshot_date: "2026-07-12",
     ev_date: "2025-12-31",
     population_date: "2026-06",

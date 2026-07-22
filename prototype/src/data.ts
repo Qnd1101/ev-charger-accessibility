@@ -6,6 +6,7 @@
  */
 
 import type { MetricSpec, Terms } from "./metrics";
+import { validateDatasetFiles } from "./contract";
 
 export const SPEED = { ALL: 0, FAST: 1, SLOW: 2 } as const;
 export const H24 = { ALL: 0, ONLY: 1 } as const;
@@ -26,6 +27,7 @@ export interface StatusCube {
 }
 
 export interface Meta {
+  schema_version: number;
   snapshot_date: string;
   ev_date: string;
   population_date: string | null;
@@ -76,7 +78,7 @@ export interface Filters {
 export const EMPTY_FILTERS: Filters = { zcodes: [], speed: SPEED.ALL, operators: [], only24h: false };
 
 export async function loadDataset(): Promise<Dataset> {
-  const get = async <T,>(name: string): Promise<T> => {
+  const get = async (name: string): Promise<unknown> => {
     const res = await fetch(`${import.meta.env.BASE_URL}data/${name}`);
     if (!res.ok) {
       throw new Error(
@@ -84,29 +86,35 @@ export async function loadDataset(): Promise<Dataset> {
           `\`python scripts/build_web_data.py\` 로 다시 생성하세요.`,
       );
     }
-    return res.json() as Promise<T>;
+    try {
+      return await res.json();
+    } catch {
+      throw new Error(
+        `집계 파일 ${name}의 JSON 형식이 올바르지 않습니다 (기대: 유효한 JSON, 실제: 파싱 실패). ` +
+          `\`python scripts/build_web_data.py\` 로 다시 생성하세요.`,
+      );
+    }
   };
 
   const [meta, metrics, operators, regionsFile, regionCube, statusCube, gridCube] = await Promise.all([
-    get<Meta>("meta.json"),
-    get<MetricSpec[]>("metrics.json"),
-    get<string[]>("operators.json"),
-    get<{ regions: Region[]; sidos: Sido[] }>("regions.json"),
-    get<RegionRow[]>("region_cube.json"),
-    get<StatusCube>("status_cube.json"),
-    get<GridRow[]>("grid_cube.json"),
+    get("meta.json"),
+    get("metrics.json"),
+    get("operators.json"),
+    get("regions.json"),
+    get("region_cube.json"),
+    get("status_cube.json"),
+    get("grid_cube.json"),
   ]);
 
-  return {
+  return validateDatasetFiles({
     meta,
     metrics,
     operators,
-    regions: regionsFile.regions,
-    sidos: regionsFile.sidos,
+    regions: regionsFile,
     regionCube,
     statusCube,
     gridCube,
-  };
+  });
 }
 
 /**
