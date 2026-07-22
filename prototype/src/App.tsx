@@ -12,36 +12,28 @@ import DistributionMap, { type MapView } from "./DistributionMap";
 import RankingChart, { type RankRow } from "./RankingChart";
 import {
   EMPTY_FILTERS,
-  SPEED,
   aggregateGrid,
   aggregateRegions,
-  aggregateStatusDistribution,
   loadDataset,
   totalTerms,
   type Dataset,
   type Filters,
-  type SpeedFilter,
   type Terms,
 } from "./data";
 import { byId, evaluate, format } from "./metrics";
+import {
+  RANK_SIZE,
+  SPEED_LABELS,
+  deriveMapMetric,
+  deriveOperatorCounts,
+  deriveRanking,
+  deriveRecoverability,
+  deriveStatusRows,
+  describeActiveFilters,
+} from "./selectors";
 
-const RANK_SIZE = 12;
 const OP_LIST_CAP = 60;
 const num = (n: number) => n.toLocaleString("ko-KR");
-
-/**
- * 랭킹 축의 시도 축약. 앞 두 글자만 자르면 전라남도/전라북도가 똑같이 '전라'가 되어
- * 서로 다른 지역이 한 축에서 구분되지 않는다. 관용 축약(전남·경북…)을 쓴다.
- */
-function shortSido(name: string): string {
-  return /^(전라|경상|충청)/.test(name) ? name[0] + name[2] : name.slice(0, 2);
-}
-
-const SPEED_LABELS: [SpeedFilter, string][] = [
-  [SPEED.ALL, "전체"],
-  [SPEED.FAST, "급속만"],
-  [SPEED.SLOW, "완속만"],
-];
 
 // 지도 뷰 토글. 코로플레스는 취약도(부족)를, 격자·히트맵·밀집 원은 충전기 밀집(과밀)을 본다.
 const MAP_VIEWS: [MapView, string][] = [
@@ -105,129 +97,24 @@ export default function App() {
   /** 개요 패널의 충전기 상태 분포 표. 합계는 위 '충전기' KPI와 일치해야 한다(같은 큐브 키). */
   const statusRows = useMemo(() => {
     if (!data) return [];
-    const counts = aggregateStatusDistribution(data, f);
-    return data.statusCube.labels
-      .map((label, i) => ({ label, count: counts[i] ?? 0 }))
-      .filter((row) => row.count > 0)
-      .sort((a, b) => b.count - a.count);
+    return deriveStatusRows(data, f);
   }, [data, f]);
 
-  /**
-   * 접근성 취약 랭킹. 지표(M1/M2)의 정의·단위·정렬 방향은 `metrics.json` 에서 온다.
-   *
-   * M2(시군구 해상도)는 인구가 시군구 단위로 있으면 시군구를, 시도로 떨어졌으면 시도를
-   * 세운다. 예전에는 시군구만 세워서, 인구가 시도로 떨어지면 배지는 "시도 · M2"라고
-   * 말하는데 표는 **조용히 비었다**. M1(EV1000대당)은 한전 통계 자체가 시도 단위라 항상
-   * 시도로 세운다.
-   *
-   * 운영기관을 고르면 0기 지역이 생기는데, 이건 국가 인프라 '부족'이 아니라 그 기관의
-   * '미진출'이다. 결과에서 지우지 않고 다른 상태로 표시한다(CONTEXT.md 용어 구분).
-   */
   const ranking = useMemo<RankRow[]>(() => {
     if (!data || !totals) return [];
-    const inScope = (zcode: number) => !f.zcodes.length || f.zcodes.includes(zcode);
-    const absent = (t: Terms) => t.charger_count === 0 && f.operators.length > 0;
-
-    const byZcode = () => {
-      const acc = new Map<number, Terms>();
-      const zOf = new Map(data.regions.map((r) => [r.zscode, r.zcode]));
-      for (const [zscode, t] of totals) {
-        const z = zOf.get(zscode);
-        if (z === undefined) continue;
-        const cur = acc.get(z) ?? { charger_count: 0 };
-        cur.charger_count! += t.charger_count ?? 0;
-        acc.set(z, cur);
-      }
-      return acc;
-    };
-
-    if (rankMetricId === "M1") {
-      const m1 = byId(data.metrics, "M1");
-      const chargersByZcode = byZcode();
-      return data.sidos
-        .filter((sd) => inScope(sd.zcode))
-        .map((sd) => {
-          const t: Terms = { ...(chargersByZcode.get(sd.zcode) ?? { charger_count: 0 }), ev_count: sd.ev_count };
-          return { name: sd.name, value: evaluate(m1, t), absent: absent(t) };
-        })
-        .sort((a, b) => (a.value ?? 0) - (b.value ?? 0))
-        .slice(0, RANK_SIZE);
-    }
-
-    const m2 = byId(data.metrics, "M2");
-    const sggRows = data.regions
-      .filter((r) => inScope(r.zcode) && r.population)
-      .map((r) => {
-        const t: Terms = {
-          ...(totals.get(r.zscode) ?? { charger_count: 0 }),
-          population: r.population!,
-        };
-        return { name: `${shortSido(r.sido)} ${r.sigungu}`, value: evaluate(m2, t), absent: absent(t) };
-      });
-    if (sggRows.length) return sggRows.sort((a, b) => (a.value ?? 0) - (b.value ?? 0)).slice(0, RANK_SIZE);
-
-    // 시군구 인구가 없다 -> 시도로 강등한다. 빈 표를 내놓지 않는다.
-    const chargersByZcode = byZcode();
-    return data.sidos
-      .filter((sd) => inScope(sd.zcode) && sd.population)
-      .map((sd) => {
-        const t: Terms = { ...(chargersByZcode.get(sd.zcode) ?? { charger_count: 0 }), population: sd.population! };
-        return { name: sd.name, value: evaluate(m2, t), absent: absent(t) };
-      })
-      .sort((a, b) => (a.value ?? 0) - (b.value ?? 0))
-      .slice(0, RANK_SIZE);
+    return deriveRanking(data, f, totals, rankMetricId, RANK_SIZE);
   }, [data, totals, f.zcodes, f.operators.length, rankMetricId]);
 
   const opCounts = useMemo(() => {
     if (!data) return new Map<number, number>();
-    const m = new Map<number, number>();
-    for (const [, op, speed, h24, chargers] of data.regionCube) {
-      if (speed !== SPEED.ALL || h24 !== 0) continue;
-      m.set(op, (m.get(op) ?? 0) + chargers);
-    }
-    return m;
+    return deriveOperatorCounts(data);
   }, [data]);
 
-  /**
-   * 지도 값도 Python이 내보낸 M2 정의를 evaluate한다. 여기서는 극성에 따라 색·높이용
-   * 취약 방향만 맞추며, 필터가 바뀌어도 무필터 전국 범위를 고정한다.
-   */
   const mapMetric = useMemo(() => {
     if (!data || !totals || !nationalTotals) {
       return { regionValues: [], fixedVulnerabilityMax: undefined };
     }
-    const spec = byId(data.metrics, "M2");
-    const valuesFor = (regionTotals: Map<number, Terms>) => data.regions.map((region) => {
-      const terms: Terms = {
-        ...(regionTotals.get(region.zscode) ?? {}),
-        ...(region.population == null ? {} : { population: region.population }),
-      };
-      return { zscode: region.zscode, value: evaluate(spec, terms) };
-    });
-    const national = valuesFor(nationalTotals);
-    const valid = national.flatMap(({ value }) => value == null ? [] : [value]);
-    if (!valid.length || spec.polarity === "neutral") {
-      return {
-        regionValues: valuesFor(totals).map((region) => ({ ...region, vulnerability: null })),
-        fixedVulnerabilityMax: undefined,
-      };
-    }
-
-    const lower = Math.min(...valid);
-    const upper = Math.max(...valid);
-    const fixedVulnerabilityMax = upper - lower;
-    const vulnerabilityOf = (value: number | null) => {
-      if (value == null) return null;
-      const directed = spec.polarity === "low_is_vulnerable" ? upper - value : value - lower;
-      return Math.min(fixedVulnerabilityMax, Math.max(0, directed));
-    };
-    return {
-      regionValues: valuesFor(totals).map((region) => ({
-        ...region,
-        vulnerability: vulnerabilityOf(region.value),
-      })),
-      fixedVulnerabilityMax,
-    };
+    return deriveMapMetric(data, totals, nationalTotals);
   }, [data, nationalTotals, totals]);
 
   /** 충전기가 많이 분포한 시군구를 읽는 지도·목록용 값. 부족도(M2)와 혼합하지 않는다. */
@@ -317,61 +204,8 @@ export default function App() {
   const toggle = <T,>(list: T[], v: T): T[] =>
     list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
 
-  const chips = [
-    ...f.zcodes.map((z) => ({
-      key: `z${z}`,
-      label: sidos.find((x) => x.zcode === z)?.name ?? String(z),
-      clear: () => setF({ ...f, zcodes: f.zcodes.filter((x) => x !== z) }),
-    })),
-    ...(f.speed !== SPEED.ALL
-      ? [{
-          key: "speed",
-          label: SPEED_LABELS.find(([v]) => v === f.speed)![1],
-          clear: () => setF({ ...f, speed: SPEED.ALL }),
-        }]
-      : []),
-    ...f.operators.map((i) => ({
-      key: `o${i}`,
-      label: operators[i],
-      clear: () => setF({ ...f, operators: f.operators.filter((x) => x !== i) }),
-    })),
-    ...(f.only24h
-      ? [{ key: "h24", label: "24시간 이용가능", clear: () => setF({ ...f, only24h: false }) }]
-      : []),
-  ];
-
-  const emptyReasons = [
-    f.zcodes.length > 0
-      ? `선택 지역: ${f.zcodes.map((z) => sidos.find((sd) => sd.zcode === z)?.name ?? z).join(", ")}`
-      : null,
-    f.operators.length > 0
-      ? `선택 운영기관: ${f.operators.map((i) => operators[i]).join(", ")}`
-      : null,
-    f.speed !== SPEED.ALL
-      ? `충전 속도: ${SPEED_LABELS.find(([value]) => value === f.speed)?.[1]}`
-      : null,
-    f.only24h ? "이용 시간: 24시간 이용가능만" : null,
-  ].filter((reason): reason is string => reason !== null);
-
-  const filterDimensions = [
-    f.zcodes.length > 0
-      ? { key: "region", label: "지역", relaxed: { ...f, zcodes: [] } }
-      : null,
-    f.operators.length > 0
-      ? { key: "operator", label: "운영기관", relaxed: { ...f, operators: [] } }
-      : null,
-    f.speed !== SPEED.ALL
-      ? { key: "speed", label: "충전 속도", relaxed: { ...f, speed: SPEED.ALL } }
-      : null,
-    f.only24h
-      ? { key: "hours", label: "이용 시간", relaxed: { ...f, only24h: false } }
-      : null,
-  ].filter((dimension): dimension is { key: string; label: string; relaxed: Filters } => dimension !== null)
-    .map((dimension) => {
-      const relaxedTotals = aggregateRegions(data, dimension.relaxed);
-      const restored = (totalTerms(data, dimension.relaxed, relaxedTotals).charger_count ?? 0) > 0;
-      return { ...dimension, restored };
-    });
+  const { chips, emptyReasons } = describeActiveFilters(data, f);
+  const filterDimensions = deriveRecoverability(data, f);
   const individuallyRecoverable = filterDimensions.filter((dimension) => dimension.restored);
 
   return (
@@ -525,7 +359,7 @@ export default function App() {
             chips.map((c) => (
               <span key={c.key} className={s.chip}>
                 {c.label}
-                <button type="button" className={s.chipX} onClick={c.clear} aria-label={`${c.label} 필터 제거`}>
+                <button type="button" className={s.chipX} onClick={() => setF(c.relaxed)} aria-label={`${c.label} 필터 제거`}>
                   ×
                 </button>
               </span>
